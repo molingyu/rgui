@@ -21,7 +21,7 @@ module RGUI
 
       def update_create(&block)
         @boxes.clear
-        block(self)
+        block[self]
       end
 
       def update_pos
