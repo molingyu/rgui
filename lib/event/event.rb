@@ -1,4 +1,5 @@
 # encoding:utf-8
+
 module RGUI
   module Event
     class Event < Array

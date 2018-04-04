@@ -1,6 +1,6 @@
 # encoding:utf-8
 
-require_relative './box/aabb'
+require_relative './box/bb'
 
 module RGUI
   module Collision

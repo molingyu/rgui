@@ -43,10 +43,17 @@ module RGUI
           Linear.define_singleton_method(:in_out, &callback)
         end
 
+        def quadratic_init
+          Quadratic.define_singleton_method(:out)
+          Quadratic.define_singleton_method(:in)
+          Quadratic.define_singleton_method(:in_out)
+        end
+
       end
 
     end
 
     Easing.linear_init
+    Easing.quadratic_init
   end
 end
