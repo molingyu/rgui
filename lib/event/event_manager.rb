@@ -39,19 +39,58 @@ module RGUI
 
       include EventHelper
 
-      def initialize
+      def initialize(object)
         EventManager.init
+        @object = object
         @events = {}
         @event_callback_fibers = {}
+        @mouse_focus = false
+        @keyboard_events = []
       end
 
-      def update
+      def update_fiber
         return if @event_callback_fibers.length == []
         @event_callback_fibers.each do |fiber|
           @current_fiber = fiber
           fiber.resume
           @current_fiber = nil
           @event_callback_fibers.delete(fiber) unless fiber.alive?
+        end
+      end
+
+      def update_mouse
+        x, y = Input.get_pos
+        collision = @object.collision_manager
+        if !@mouse_focus && collision.point_hit(x, y)
+          trigger('mouse_in', {:x=>x, :y=>y})
+          @mouse_focus = true
+        elsif @mouse_focus && !collision.point_hit(x, y)
+          trigger('mouse_out', {:x=>x, :y=>y})
+          @mouse_focus = false
+        end
+        trigger('mouse_scroll', {:value => Input.scroll_value}) if Input.scroll?
+      end
+
+      def update_keyboard(event)
+        type, name = event.name,split('|')
+        return if name['MOUSE'] && !@mouse_focus
+        case type
+          when 'keydown'
+            trigger(event.name) if Input.down?(name)
+          when 'keypress'
+            trigger(event.name) if Input.press?(name)
+          when 'keyup'
+            trigger(event.name) if Input.up?(name)
+          else
+            raise 'Error:Keyboard event type error!'
+        end
+      end
+
+      def update
+        update_fiber
+        if @object.status && @object.visible
+          update_mouse
+          @keyboard_events.each{ |o| update_keyboard(o) }
         end
       end
 
@@ -84,17 +123,23 @@ module RGUI
         @events[name].push(Callback.new(async, immediately, &callback))
       end
 
-      # @param [Symbol] name
+      # @param [Symbol|Array<Symbol>] name
       # @param [Boolean] immediately
       # @param [Proc] callback
       def on(name, immediately = false, &callback)
+        if name.class == Array
+          return names.each{ |name| on(name, false, &callback)  }
+        end
         _on(name, immediately, false, callback)
       end
 
-      # @param [Symbol] name
+      # @param [Symbol|Array<Symbol>] name
       # @param [Boolean] immediately
       # @param [Proc] callback
       def on_async(name, immediately = false, &callback)
+        if name.class == Array
+          return names.each{ |name| on_async(name, false, &callback)  }
+        end
         _on(name, immediately, true, callback)
       end
 
