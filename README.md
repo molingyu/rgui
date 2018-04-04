@@ -1,8 +1,17 @@
 # RGSS3 GUI Framework
 
-## Usage
+一个轻量级的有力的 GUI 框架。支持异步事件和 UI 动画。
 
+## Usage
+下载 `dist` 文件夹下的 `rgui.rb`。 将其复制到RMVA 插入脚本处【最好位于顶层】。
+
+具体使用请参照 __example__ 和 [API 文档]()。
 ## Development
+需要 `ruby-1.9` 以上的环境。
+
+`rake doc` 生成新的 API 文档。
+
+`rake` 或者 `rake pack` 则会打包输出到 `dist`。 
 
 ## Contributing
 
