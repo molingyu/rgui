@@ -19,15 +19,18 @@ module RGUI
 
       attr_reader :actions
 
+      # @param [RGUI::Base] object
       def initialize(object)
         @object = object
         @actions = []
       end
 
       def add_action(name, param)
-        action = @@actions[name]
+        action_class = @@actions[name]
         raise("error action name") unless action
-        @actions.push(action.new(param))
+        action = action_class.new(param)
+        @actions.push(action)
+        @object.event_manager.on(:action_end) { action.close }
       end
 
       def update
