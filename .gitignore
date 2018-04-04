@@ -1,0 +1,8 @@
+# editor
+.vscode
+.idea
+.vs
+
+# ci
+doc
+.yardoc
