@@ -2,6 +2,7 @@
 
 require_relative '../action_base'
 require_relative '../interpolator'
+require_relative '../action_manager'
 
 module RGUI
   module Action

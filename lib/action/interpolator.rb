@@ -44,9 +44,9 @@ module RGUI
         end
 
         def quadratic_init
-          Quadratic.define_singleton_method(:out)
-          Quadratic.define_singleton_method(:in)
-          Quadratic.define_singleton_method(:in_out)
+          Quadratic.define_singleton_method(:out) {}
+          Quadratic.define_singleton_method(:in) {}
+          Quadratic.define_singleton_method(:in_out) {}
         end
 
       end

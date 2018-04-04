@@ -1,9 +1,11 @@
 # encoding:utf-8
 
+require_relative 'action_base'
+require_relative 'interpolator'
+
 module RGUI
   module Action
     class ActionManager
-
       class << self
         attr_reader :actions
 
@@ -14,7 +16,6 @@ module RGUI
         def use(name, action_class)
           @actions[name] = action_class
         end
-
       end
 
       attr_reader :actions
@@ -41,5 +42,8 @@ module RGUI
         end
       end
     end
+
+    ActionManager.init
+
   end
 end
