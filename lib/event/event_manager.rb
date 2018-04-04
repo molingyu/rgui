@@ -89,8 +89,8 @@ module RGUI
       def update
         update_fiber
         if @object.status && @object.visible
-          update_mouse
-          @keyboard_events.each{ |o| update_keyboard(o) }
+          update_mouse if RGUI::MOUSE
+          @keyboard_events.each{ |o| update_keyboard(o) } if RGUI::KEYBOARD
         end
       end
 
@@ -101,10 +101,10 @@ module RGUI
         return unless event
         event.each do |callback|
           next callback[info] if !callback.async && callback.immediately
-          unless @event_callback_fibers[callback.object_id]
-            @event_callback_fibers[callback.object_id] = EventCallbackFiber.new(self, name, callback, info)
-          else
+          if @event_callback_fibers[callback.object_id]
             @event_callback_fibers[callback.object_id].count += 1
+          else
+            @event_callback_fibers[callback.object_id] = EventCallbackFiber.new(self, name, callback, info)
           end
         end
       end
@@ -128,7 +128,7 @@ module RGUI
       # @param [Proc] callback
       def on(name, immediately = false, &callback)
         if name.class == Array
-          return names.each{ |name| on(name, false, &callback)  }
+          return names.each{ |str| on(str, false, &callback)  }
         end
         _on(name, immediately, false, callback)
       end
@@ -138,7 +138,7 @@ module RGUI
       # @param [Proc] callback
       def on_async(name, immediately = false, &callback)
         if name.class == Array
-          return names.each{ |name| on_async(name, false, &callback)  }
+          return names.each{ |str| on_async(str, false, &callback)  }
         end
         _on(name, immediately, true, callback)
       end
