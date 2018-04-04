@@ -1,12 +1,16 @@
+# encoding:utf-8
+
+require_relative 'version'
+require_relative 'event/event_manager'
+require_relative 'action/action_manager'
+require_relative 'action/actions/index'
+require_relative 'collision/collision_manager'
+require_relative 'components/index'
+
 module RGUI
 
-  attr_accessor :MOUSE
-  attr_accessor :KEYBOARD
-  attr_accessor :CONTROLS
-
-  def init
-    @MOUSE = true
-    @KEYBOARD = true
-  end
+  MOUSE = true
+  KEYBOARD = true
+  CONTROLS = 0
 
 end
