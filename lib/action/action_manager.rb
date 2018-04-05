@@ -27,7 +27,7 @@ module RGUI
       end
 
       def add_action(name, param)
-        action_class = @@actions[name]
+        action_class = ActionManager.actions[name]
         raise("error action name") unless action
         action = action_class.new(param)
         @actions.push(action)
