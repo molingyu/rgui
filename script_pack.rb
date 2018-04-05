@@ -14,8 +14,10 @@ def pack(source, out)
           depends = $1
           unless visited.include? depends
             depends = File.expand_path(depends + '.rb', File.dirname(f))
-            cont << depends unless cont.include? depends
-            visited[file] << depends
+            if depends !~ /.*\/rgss_base.rb/
+              cont << depends unless cont.include? depends
+              visited[file] << depends
+            end
           end
         end
       end
@@ -28,21 +30,26 @@ def pack(source, out)
 
   def reorder(file, dependency)
     return [file] if dependency[file] == []
-     p file
-    return dependency[file].map {|dep| reorder(dep, dependency) }
+    dependency[file].map {|dep| reorder(dep, dependency) }
                .reduce(:concat)
                .concat([file])
                .uniq
   end
 
+
   index = 0
+
   File.open(out, 'w').write reorder(source, visited).map {|file|
+    next '' if file =~ /.*\/index.rb/
     index += 1
     puts file
-    "\n# File #{file}\n" + File.open(file).read
+
+    "\n\n# File #{file}\n\n" + File.open(file).read.gsub("# encoding:utf-8\n", '').strip
   }.map { |s|
-    s.gsub(/require_relative\s*'(.*)'[\r\n]*/, "")
-  }.reduce(:concat)
+    s.gsub(/require_relative\s*'(.*)'[\r\n]*/, '')
+        .gsub(__FILE__[0, __FILE__.size - __FILE__.reverse.index('/')], '')
+
+  }.reduce(:concat).strip
 
   puts "Finish! #{index} files."
 end
