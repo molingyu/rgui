@@ -1,10 +1,596 @@
+# File lib/rgss/api.rb
 
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/version.rb
+module API
+
+  @api_cache = {}
+
+  def self.to_api(str)
+    @api_cache[str.hash] = Win32API.new(*str.split('|')) unless @api_cache.include? str.hash
+    @api_cache[str.hash]
+  end
+
+  GetWindowThreadProcessId = self.to_api('user32|GetWindowThreadProcessId|LP|L')
+  GetWindow = self.to_api('user32|GetWindow|LL|L')
+  GetClassName = self.to_api('user32|GetClassName|LPL|L')
+  GetCurrentThreadId = self.to_api('kernel32|GetCurrentThreadId|V|L')
+  GetForegroundWindow = self.to_api('user32|GetForegroundWindow|V|L')
+  GetClientRect = self.to_api('user32|GetClientRect|lp|i')
+
+  def self.get_hwnd
+    thread_id = GetCurrentThreadId.call
+    hwnd = GetWindow.call(GetForegroundWindow.call, 0)
+    while hwnd != 0
+      if thread_id == GetWindowThreadProcessId.call(hwnd, 0)
+        class_name = ' ' * 11
+        GetClassName.call(hwnd, class_name, 12)
+        break if class_name == 'RGSS Player'
+      end
+      hwnd = GetWindow.call(hwnd, 2)
+    end
+    hwnd
+  end
+
+  def self.get_rect
+    rect = [0, 0, 0, 0].pack('l4')
+    GetClientRect.call(API.get_hwnd, rect)
+    Rect.array2rect(rect.unpack('l4'))
+  end
+
+end
+
+# File lib/rgss/timer.rb
+
+class Timer
+
+  @@list = []
+
+  def self.update
+    @@list.each{|o| o.update if o != nil } if @@list != []
+  end
+
+  attr_reader :status
+
+  TimerEvent = Struct.new(:start_time, :time, :block)
+
+  def initialize
+    @@list.push(self)
+    @afters = []
+    @everys = []
+    @status = :run
+    @stops_time = 0
+  end
+
+  def start
+    return if @status == :run
+    @stops_time += Time.now - @stop_time
+    @status = :run
+  end
+
+  def stop
+    return if @status == :stop
+    @stop_time = Time.now
+    @status = :stop
+  end
+
+  def after(time, &block)
+    @afters.push object = TimerEvent.new(Time.now, time, block)
+    object
+  end
+
+  def every(time, &block)
+    @everys.push object = TimerEvent.new(Time.now, time, block)
+    object
+  end
+
+  def delete_every(object)
+    @everys.delete(object)
+  end
+
+  def delete_after(object)
+    @afters.delete(object)
+  end
+
+  def dispose
+    @@list.delete(self)
+    @afters.clear
+    @everys.clear
+  end
+
+  def update_afters
+    return if @afters == []
+    @afters.each do |o|
+      if Time.now - o.start_time - @stops_time >= o.time
+        o.block.call
+        @afters.delete(o)
+      end
+    end
+  end
+
+  def update_everys
+    return if @everys == []
+    @everys.each do |o|
+      if Time.now - o.start_time - @stops_time >= o.time
+        o.block.call
+        o.start_time = Time.now
+        @stops_time = 0
+      end
+    end
+  end
+
+  def update
+    update_afters
+    update_everys
+  end
+
+end
+
+# File lib/rgss/rect.rb
+
+class Rect
+
+  def self.array2rect(array)
+    Rect.new(array[0], array[1], array[2], array[3])
+  end
+
+  def rect2array
+    [self.x, self.y, self.width, self.height]
+  end
+
+  def point_hit(x, y)
+
+    self.x <= x && x <= self.width && self.y <= y && y <= self.height
+  end
+
+  def rect_hit(rect)
+    rect.x < self.x + self.width || rect.y < self.y + self.height || rect.x + rect.width > self.x || rect.y + rect.height > self.y
+  end
+
+end
+
+# File lib/rgss/input.rb
+
+module Input
+
+  KEY_VALUE = {
+      MOUSE_LB: 0x01,
+      MOUSE_RB: 0x02,
+      MOUSE_MB: 0x04,
+
+      KEY_BACK: 0x08,
+      KEY_TAB: 0x09,
+
+      KEY_CLEAR: 0x0C,
+      KEY_ENTER: 0x0D,
+      KEY_SHIFT: 0x10,
+      KEY_CTRL: 0x11,
+      KEY_ALT: 0x12,
+      KEY_PAUSE: 0x13,
+      KEY_CAPITAL: 0x14,
+      KEY_ESC: 0x1B,
+      KEY_SPACE: 0x20,
+      KEY_PRIOR: 0x21,
+      KEY_NEXT: 0x22,
+      KEY_END: 0x23,
+      KEY_HOME: 0x24,
+      KEY_LEFT: 0x25,
+      KEY_UP: 0x26,
+      KEY_RIGHT: 0x27,
+      KEY_DOWN: 0x28,
+      KEY_SELECT: 0x29,
+      KEY_EXECUTE: 0x2B,
+      KEY_INS: 0x2D,
+      KEY_DEL: 0x2E,
+      KEY_HELP: 0x2F,
+
+      KEY_0: 0x30,
+      KEY_1: 0x31,
+      KEY_2: 0x32,
+      KEY_3: 0x33,
+      KEY_4: 0x34,
+      KEY_5: 0x35,
+      KEY_6: 0x36,
+      KEY_7: 0x37,
+      KEY_8: 0x38,
+      KEY_9: 0x39,
+
+      KEY_A: 0x41,
+      KEY_B: 0x42,
+      KEY_C: 0x43,
+      KEY_D: 0x44,
+      KEY_E: 0x45,
+      KEY_F: 0x46,
+      KEY_G: 0x47,
+      KEY_H: 0x48,
+      KEY_I: 0x49,
+      KEY_J: 0x4A,
+      KEY_K: 0x4B,
+      KEY_L: 0x4C,
+      KEY_M: 0x4D,
+      KEY_N: 0x4E,
+      KEY_O: 0x4F,
+      KEY_P: 0x50,
+      KEY_Q: 0x51,
+      KEY_R: 0x52,
+      KEY_S: 0x53,
+      KEY_T: 0x54,
+      KEY_U: 0x55,
+      KEY_V: 0x56,
+      KEY_W: 0x57,
+      KEY_X: 0x58,
+      KEY_Y: 0x59,
+      KEY_Z: 0x5A,
+      KEY_NUM_0: 0x60,
+      KEY_NUM_1: 0x61,
+      KEY_NUM_2: 0x62,
+      KEY_NUM_3: 0x63,
+      KEY_NUM_4: 0x64,
+      KEY_NUM_5: 0x65,
+      KEY_NUM_6: 0x66,
+      KEY_NUM_7: 0x67,
+      KEY_NUM_8: 0x68,
+      KEY_NUM_9: 0x69,
+      KEY_NULTIPLY: 0x6A,
+      KEY_ADD: 0x6B,
+      KEY_SEPARATOR: 0x6C,
+      KEY_SUBTRACT: 0x6D,
+      KEY_DECIMAL: 0x6E,
+      KEY_DIVIDE: 0x6F,
+
+      KEY_F1: 0x70,
+      KEY_F2: 0x71,
+      KEY_F3: 0x72,
+      KEY_F4: 0x73,
+      KEY_F5: 0x74,
+      KEY_F6: 0x75,
+      KEY_F7: 0x76,
+      KEY_F8: 0x77,
+      KEY_F9: 0x78,
+      KEY_F10: 0x79,
+      KEY_F11: 0x7A,
+      KEY_F12: 0x7B,
+
+      KEY_NUMLOCK: 0x90,
+      KEY_SCROLL: 0x91,
+  }
+
+  GetKeyboardState = API.to_api('user32|GetKeyboardState|p|i')
+  GetMousePos = API.to_api('user32|GetCursorPos|p|i')
+  Scr2Cli = API.to_api('user32|ScreenToClient|lp|i')
+
+  class << self
+
+    def init
+      @old_keyboard_state = @keyboard_state = ' ' * 256
+      @keyboard = Hash.new(0)
+    end
+
+    alias :shitake_core_plus_update :update
+
+    def update
+      shitake_core_plus_update
+      update_keyboard
+    end
+
+    def update_keyboard
+      @old_keyboard_state = @keyboard_state
+      @keyboard_state = ' ' * 256
+      GetKeyboardState.call(@keyboard_state)
+      256.times do |i|
+        next unless KEY_VALUE.index(i)
+        @keyboard[i] = 2 if @keyboard[i] == 1
+        @keyboard[i] = 0 if @keyboard[i] == 3
+        if @keyboard_state[i] != @old_keyboard_state[i] && @old_keyboard_state[i] != ' '
+          case @keyboard[i]
+            when 0
+              @keyboard[i] = 1
+            when 2
+              @keyboard[i] = 3
+          end
+        end
+      end
+    end
+
+    def press?(key)
+      key = key.to_sym if key.class == String
+      value = KEY_VALUE[key]
+      (@keyboard[value] == 1 || @keyboard[value] == 2) ? true : false
+    end
+
+    def down?(key)
+      key = key.to_sym if key.class == String
+      value = KEY_VALUE[key]
+      @keyboard[value] == 1 ? true : false
+    end
+
+    def up?(key)
+      key = key.to_sym if key.class == String
+      value = KEY_VALUE[key]
+      @keyboard[value] == 3 ? true : false
+    end
+
+    def get_global_pos
+      pos = [0, 0].pack('ll')
+      return nil if GetMousePos.call(pos) == 0
+      pos.unpack('ll')
+    end
+
+    def get_pos
+      pos = [0, 0].pack('ll')
+      return nil if GetMousePos.call(pos) == 0
+      return nil if Scr2Cli.call(API.get_hwnd, pos) == 0
+      return [-1, -1] unless API.get_rect.point_hit(*pos.unpack('ll'))
+      pos.unpack('ll')
+    end
+
+    def scroll?
+      false
+    end
+
+    def scroll_value
+      0
+    end
+
+  end
+
+  init
+
+end
+
+# File lib/rgss/bitmap.rb
+
+class Numeric
+
+  def fpart
+    self - self.to_i
+  end
+
+  def rfpart
+    1 - fpart
+  end
+
+end
+
+class Bitmap
+
+
+  def cut_bitmap(width, height, type)
+    case type
+      when 0
+        bitmaps = cut_row(width, height)
+      when 1
+        bitmaps = cut_rank(width, height)
+      when 2
+        bitmaps = cut_row_rank(width, height)
+      when 3
+        bitmaps = cut_rank_row(width, height)
+      else
+        raise "Error:Bitmap cut type error(#{type})."
+    end
+    bitmaps
+  end
+
+  def cut_bitmap_conf(config)
+    bitmaps = []
+    config.each do |i|
+      bitmap = Bitmap.new(i[2], i[3])
+      bitmap.blt(0, 0, self, Rect.new(i[0],i[1], i[2], i[3]))
+      bitmaps.push(bitmap)
+    end
+    bitmaps
+  end
+
+  def cut_row(width, height)
+    number = self.width / width
+    bitmaps = []
+    number.times do |i|
+      dx = width * i
+      bitmap = Bitmap.new(width,height)
+      bitmap.blt(0, 0, self, Rect.new(dx, 0, width, height))
+      bitmaps.push(bitmap)
+    end
+    bitmaps
+  end
+
+  def cut_rank(width, height)
+    number = self.height / height
+    bitmaps = []
+    number.times do |i|
+      dx = height * i
+      bitmap = Bitmap.new(width,height)
+      bitmap.blt(0, 0, self, Rect.new(0, dx, width, height))
+      bitmaps.push(bitmap)
+    end
+    bitmaps
+  end
+
+  def cut_row_rank(width, height)
+    bitmaps = []
+    w_bitmaps = cut_row(width, self.height)
+    w_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_rank(width, height) }
+    bitmaps
+  end
+
+  def cut_rank_row(width, height)
+    bitmaps = []
+    h_bitmaps = cut_rank(self.width, height)
+    h_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_row(width, height) }
+    bitmaps
+  end
+
+  def scale9bitmap(a, b, c, d, width, height)
+    raise "Error:width too min!(#{width} < #{self.width})" if width < self.width
+    raise "Error:height too min!(#{height} < #{self.height})" if height < self.height
+    w = self.width - a - b
+    h = self.height - c - d
+    config = [
+        [0, 0, a, c],
+        [a, 0, w, c],
+        [self.width - b, 0, b, c],
+        [0, c, a, h],
+        [a, c, w, h],
+        [self.width - b, c, b, h],
+        [0, self.height - d, a, d],
+        [a, self.height - d, w, d],
+        [self.width - b, self.height - d, b, d]
+    ]
+    bitmaps = cut_bitmap_conf(config)
+    w_number = (width - a - b) / w
+    w_yu = (width - a - b) % w
+    h_number = (height - c - d) / h
+    h_yu = (height - c - d) % h
+    bitmap = Bitmap.new(width, height)
+    # center
+    w_number.times do |n|
+      h_number.times do | i|
+        bitmap.blt(a + n * w, c + i * h, bitmaps[4], bitmaps[4].rect)
+        bitmap.blt(a + w_number * w, c + i * h, bitmaps[4], Rect.new(0, 0, w_yu, h)) if n == 0
+      end
+      bitmap.blt(a + n * w, c + h_number * h, bitmaps[4], Rect.new(0, 0, w, h_yu))
+    end
+    bitmap.blt(a + w_number * w, c + h_number * h, bitmaps[4], Rect.new(0, 0, w_yu, h_yu))
+    #w
+    w_number.times do |n|
+      bitmap.blt(a + n * w, 0, bitmaps[1], bitmaps[1].rect)
+      bitmap.blt(a + n * w, height - d, bitmaps[7], bitmaps[7].rect)
+    end
+    bitmap.blt(a + w_number * w, 0, bitmaps[1], Rect.new(0, 0, w_yu, c))
+    bitmap.blt(a + w_number * w, height - d, bitmaps[7], Rect.new(0, 0, w_yu, d))
+    #h
+    h_number.times do |n|
+      bitmap.blt(0, c + n * h, bitmaps[3], bitmaps[3].rect)
+      bitmap.blt(width - b, c + n * h, bitmaps[5], bitmaps[5].rect)
+    end
+    bitmap.blt(0, c + h_number * h, bitmaps[3], Rect.new(0, 0, a, h_yu))
+    bitmap.blt(width - b, c + h_number * h, bitmaps[5], Rect.new(0, 0, b, h_yu))
+
+    bitmap.blt(0, 0, bitmaps[0], bitmaps[0].rect)
+    bitmap.blt(width - b, 0, bitmaps[2], bitmaps[2].rect)
+    bitmap.blt(0, height - d, bitmaps[6], bitmaps[6].rect)
+    bitmap.blt(width - b, height - d, bitmaps[8], bitmaps[8].rect)
+    bitmap
+  end
+
+end
+
+# File lib/rgss/color.rb
+
+class Color
+
+  #Common Color 10
+  RED = Color.new(255, 0 ,0)
+  ORANGE = Color.new(255, 165, 0)
+  YELLOW = Color.new(255, 255, 0)
+  GREEN = Color.new(0, 255, 0)
+  CHING = Color.new(0, 255, 255)
+  BLUE = Color.new(0, 0, 255)
+  PURPLE = Color.new(139, 0, 255)
+  BLACK = Color.new(0, 0, 0)
+  WHITE = Color.new(255 ,255, 255)
+  GREY = Color.new(100,100,100)
+
+  #24 Color Ring
+  CR1 = Color.new(230, 3, 18)
+  CR2 = Color.new(233, 65, 3)
+  CR3 = Color.new(240, 126, 15)
+  CR4 = Color.new(240, 186, 26)
+  CR5 = Color.new(234, 246, 42)
+  CR6 = Color.new(183, 241, 19)
+  CR7 = Color.new(122, 237, 0)
+  CR8 = Color.new(62, 234, 2)
+  CR9 = Color.new(50, 198, 18)
+  CR10 = Color.new(51, 202, 73)
+  CR11 = Color.new(56, 203, 135)
+  CR12 = Color.new(60, 194, 197)
+  CR13 = Color.new(65, 190, 255)
+  CR14 = Color.new(46, 153, 255)
+  CR15 = Color.new(31, 107, 242)
+  CR16 = Color.new(10, 53, 231)
+  CR17 = Color.new(0, 4, 191)
+  CR18 = Color.new(56, 0, 223)
+  CR19 = Color.new(111, 0, 223)
+  CR20 = Color.new(190, 4, 220)
+  CR21 = Color.new(227, 7, 213)
+  CR22 = Color.new(226, 7, 169)
+  CR23 = Color.new(227, 3, 115)
+  CR24 = Color.new(227, 2, 58)
+
+  #32 Gray Level
+  GL1 = Color.new(0, 0, 0)
+  GL2 = Color.new(8, 8, 8)
+  GL3 = Color.new(16, 16, 16)
+  GL4 = Color.new(24, 24, 24)
+  GL5 = Color.new(32, 32, 32)
+  GL6 = Color.new(40, 40, 40)
+  GL7 = Color.new(48, 48, 48)
+  GL8 = Color.new(56, 56, 56)
+  GL9 = Color.new(64, 64, 64)
+  GL10 = Color.new(72, 72, 72)
+  GL11 = Color.new(80, 80, 80)
+  GL12 = Color.new(88, 88, 88)
+  GL13 = Color.new(96, 96, 96)
+  GL14 = Color.new(104, 104, 104)
+  GL15 = Color.new(112, 112, 112)
+  GL16 = Color.new(120, 120, 120)
+  GL17 = Color.new(128, 128, 128)
+  GL18 = Color.new(136, 136, 136)
+  GL19 = Color.new(144, 144, 144)
+  GL20 = Color.new(152, 152, 152)
+  GL21 = Color.new(160, 160, 160)
+  GL22 = Color.new(168, 168, 168)
+  GL23 = Color.new(176, 176, 176)
+  GL24 = Color.new(184, 184, 184)
+  GL25 = Color.new(192, 192, 192)
+  GL26 = Color.new(200, 200, 200)
+  GL27 = Color.new(208, 208, 208)
+  GL28 = Color.new(216, 216, 216)
+  GL29 = Color.new(224, 224, 224)
+  GL30 = Color.new(232, 232, 232)
+  GL31 = Color.new(240, 240, 240)
+  GL32 = Color.new(248, 248, 248)
+
+  def self.str2color(str)
+    regexp = /rgba\(( *[0-9]|[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]),( *[0-9]|[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]),( *[0-9]|[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]),( *[0-9]|[0-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\)/
+    raise "Error:Color string error(#{str})." if str[regexp]
+    Color.new($1.to_i, $2.to_i, $3.to_i, $4.to_i)
+  end
+
+  def self.hex2color(hex)
+    regexp = /#([0-9a-f]|[0-9a-f][0-9a-f])([0-9a-f]|[0-9a-f][0-9a-f])([0-9a-f]|[0-9a-f][0-9a-f])/
+    raise "Error:Color hex string error(#{hex})." if hex[regexp]
+    Color.new($1.to_i(16), $2.to_i(16), $3.to_i(16))
+  end
+
+  def inverse
+    Color.new(255 - self.red, 255 - self.green, 255 - self.blue, self.alpha)
+  end
+
+  def to_rgba
+    "rgba(#{self.red.to_i}, #{self.green.to_i}, #{self.blue.to_i}, #{self.alpha.to_i})"
+  end
+
+  def to_hex
+    sprintf('#%02x%02x%02x', self.red, self.green, self.blue)
+  end
+
+end
+
+# File lib/version.rb
+
 module RGUI
   VERSION = '0.1.0'
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/event/event.rb
-# encoding:utf-8
+
+# File lib/rgui.rb
+
+module RGUI
+
+  MOUSE = true
+  KEYBOARD = true
+  CONTROLS = 0
+
+end
+
+# File lib/event/event.rb
 
 module RGUI
   module Event
@@ -24,8 +610,9 @@ module RGUI
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/event/event_helper.rb
-# encoding:utf-8
+
+# File lib/event/event_helper.rb
+
 module RGUI
   module Event
     module EventHelper
@@ -79,8 +666,8 @@ module RGUI
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/event/event_callback_fiber.rb
-# encoding:utf-8
+
+# File lib/event/event_callback_fiber.rb
 
 module RGUI
   module Event
@@ -101,10 +688,9 @@ module RGUI
       attr_reader :time
       # event trigger time
       # @return [Integer]
-      attr_reader :count
+      attr_accessor :count
 
-
-      # @param [EventHelper] helper
+      # @param [EventManager] helper
       # @param [Symbol] name
       # @param [Callback] callback
       # @param [Hash] info
@@ -145,25 +731,24 @@ module RGUI
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/event/event_manager.rb
-# encoding:utf-8
+
+# File lib/event/event_manager.rb
 
 module RGUI
   module Event
+    class Callback < Proc
+      attr_reader :async
+      attr_reader :immediately
+
+      def initialize(async, immediately, &callback)
+        super(&callback)
+        @async = async
+        @immediately = immediately
+      end
+    end
+
     # Event manager.
     class EventManager
-
-      class Callback < Proc
-        attr_reader :async
-        attr_reader :immediately
-
-        def initialize(async, immediately, &callback)
-          super(&callback)
-          @async = async
-          @immediately = immediately
-        end
-      end
-
       class << self
         attr_accessor :type_getters
 
@@ -183,8 +768,11 @@ module RGUI
 
       include EventHelper
 
+      # @return [RGUI::Component::BaseComponent]
+      attr_reader :object
+
+      # @param [RGUI::Component::BaseComponent] object
       def initialize(object)
-        EventManager.init
         @object = object
         @events = {}
         @event_callback_fibers = {}
@@ -193,8 +781,10 @@ module RGUI
       end
 
       def update_fiber
-        return if @event_callback_fibers.length == []
-        @event_callback_fibers.each do |fiber|
+        return if @event_callback_fibers.length == 0
+        @event_callback_fibers.each do
+          # @type fiber [EventCallbackFiber]
+        |_, fiber|
           @current_fiber = fiber
           fiber.resume
           @current_fiber = nil
@@ -206,17 +796,18 @@ module RGUI
         x, y = Input.get_pos
         collision = @object.collision_manager
         if !@mouse_focus && collision.point_hit(x, y)
-          trigger('mouse_in', {:x=>x, :y=>y})
+          trigger(:mouse_in, {:x=>x, :y=>y})
           @mouse_focus = true
         elsif @mouse_focus && !collision.point_hit(x, y)
-          trigger('mouse_out', {:x=>x, :y=>y})
+          trigger(:mouse_out, {:x=>x, :y=>y})
           @mouse_focus = false
         end
-        trigger('mouse_scroll', {:value => Input.scroll_value}) if Input.scroll?
+        trigger(:mouse_scroll, {:value => Input.scroll_value}) if Input.scroll?
       end
 
+      # @param [Event] event
       def update_keyboard(event)
-        type, name = event.name,split('|')
+        type = event.type
         return if name['MOUSE'] && !@mouse_focus
         case type
           when 'keydown'
@@ -234,16 +825,19 @@ module RGUI
         update_fiber
         if @object.status && @object.visible
           update_mouse if RGUI::MOUSE
-          @keyboard_events.each{ |o| update_keyboard(o) } if RGUI::KEYBOARD
+          @keyboard_events.each{ |o| update_keyboard(o) } if @object.focus
         end
       end
 
       # @param [Symbol] name
       # @param [Hash] info
       def trigger(name, info = {})
+        # @type [Event]
         event = @events[name]
         return unless event
-        event.each do |callback|
+        event.each do
+          # @type callback [Callback]
+        |callback|
           next callback[info] if !callback.async && callback.immediately
           if @event_callback_fibers[callback.object_id]
             @event_callback_fibers[callback.object_id].count += 1
@@ -272,7 +866,7 @@ module RGUI
       # @param [Proc] callback
       def on(name, immediately = false, &callback)
         if name.class == Array
-          return names.each{ |name| on(name, false, &callback)  }
+          return name.each{ |str| on(str, false, &callback)  }
         end
         _on(name, immediately, false, callback)
       end
@@ -282,16 +876,18 @@ module RGUI
       # @param [Proc] callback
       def on_async(name, immediately = false, &callback)
         if name.class == Array
-          return names.each{ |name| on_async(name, false, &callback)  }
+          return name.each{ |str| on_async(str, false, &callback)  }
         end
         _on(name, immediately, true, callback)
       end
-
     end
+
+    EventManager.init
+
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/action/action_base.rb
-# encoding:utf-8
+
+# File lib/action/action_base.rb
 
 module RGUI
   module Action
@@ -309,8 +905,8 @@ module RGUI
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/action/interpolator.rb
-# encoding:utf-8
+
+# File lib/action/interpolator.rb
 
 module RGUI
   module Action
@@ -369,8 +965,8 @@ module RGUI
     Easing.quadratic_init
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/action/action_manager.rb
-# encoding:utf-8
+
+# File lib/action/action_manager.rb
 
 module RGUI
   module Action
@@ -396,7 +992,7 @@ module RGUI
       end
 
       def add_action(name, param)
-        action_class = @@actions[name]
+        action_class = ActionManager.actions[name]
         raise("error action name") unless action
         action = action_class.new(param)
         @actions.push(action)
@@ -416,8 +1012,8 @@ module RGUI
 
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/action/actions/breath.rb
-# encoding:utf-8
+
+# File lib/action/actions/breath.rb
 
 module RGUI
   module Action
@@ -447,10 +1043,7 @@ module RGUI
   end
 end
 
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/action/actions/index.rb
-
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/collision/box/aabb.rb
-# encoding:utf-8
+# File lib/collision/box/aabb.rb
 
 module RGUI
   module Collision
@@ -479,8 +1072,8 @@ module RGUI
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/collision/collision_manager.rb
-# encoding:utf-8
+
+# File lib/collision/collision_manager.rb
 
 module RGUI
   module Collision
@@ -512,42 +1105,52 @@ module RGUI
         @boxes.each { |box| box.update_size(object.width, object.height) }
       end
 
-      def hit(x, y)
+      def point_hit(x, y)
         @boxes.each {|box| return true if box.hit(x, y) }
       end
 
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/components/base.rb
-# encoding:utf-8
+
+# File lib/components/base.rb
 
 module RGUI
   module Component
     class BaseComponent
+      # @return [Integer]
       attr_reader :x
+      # @return [Integer]
       attr_reader :y
+      # @return [Integer]
       attr_reader :z
+      # @return [Integer]
       attr_reader :width
+      # @return [Integer]
       attr_reader :height
-      attr_reader :viewport
+      # @return [Boolean]
       attr_reader :focus
+      # @return [Boolean]
       attr_reader :visible
+      # @return [Integer]
       attr_reader :opacity
+      # @return [Boolean]
       attr_reader :status
+      # @return [BaseComponent]
       attr_reader :parent
+      # @return [RGUI::Event::EventManager]
       attr_reader :event_manager
+      # @return [RGUI::Action::ActionManager]
       attr_reader :action_manager
+      # @return [RGUI::Collision::CollisionManager]
       attr_reader :collision_manager
 
       def initialize(conf = {})
         @x = conf[:x] || 0
         @y = conf[:y] || 0
-        @z = conf[:z]
+        @z = conf[:z] || 0
         @width = conf[:width] || 0
         @height = conf[:height] || 0
-        @viewport = conf[:viewport]
-        @z = @viewport.z if @viewport
         @focus = conf[:focus]
         @visible = conf[:visible]
         @opacity = conf[:opacity] if 255
@@ -556,16 +1159,14 @@ module RGUI
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
         @collision_manager = Collision::CollisionManager.new(self)
-        def_attrs_writer([
-            :x, :y, :z, :width, :height, :viewport,
-            :focus, :visible, :opacity, :status, :parent
-        ])
+        def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus, :visible, :opacity, :status, :parent
+
       end
 
-      def def_attrs_writer(attrs)
+      def def_attrs_writer(*attrs)
         attrs.each do |atttr_name|
           define_singleton_method((atttr_name.to_s + '=').to_sym) do |value|
-            attr_value = class_variable_get(('@' + atttr_name.to_s).to_sym)
+            attr_value = instance_variable_get(('@' + atttr_name.to_s).to_sym)
             unless attr_value == value
               old, attr_value = attr_value, value
               @event_manager.trigger(('change_' + atttr_name.to_s).to_sym, {:old => old, :new => attr_value})
@@ -575,11 +1176,15 @@ module RGUI
       end
 
       def def_event_callback
-        @event_manager.on([:change_x, :change_y, :move, :move_to]) do |em|
+        @event_manager.on([:change_x, :change_y, :move, :move_to]) do
+          # @type em [RGUI::Event::EventManager]
+        |em|
           em.object.collision_manager.update_pos
         end
 
-        @event_manager.on([:change_width, :change_height, :change_size]) do |em|
+        @event_manager.on([:change_width, :change_height, :change_size]) do
+          # @type em [RGUI::Event::EventManager]
+        |em|
           em.object.collision_manager.update_size
         end
       end
@@ -592,7 +1197,6 @@ module RGUI
       def update
         @event_manager.update
         @action_manager.update
-        @collision_manager.update
       end
 
       def close
@@ -673,49 +1277,89 @@ module RGUI
     end
   end
 end
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/components/image_box.rb
-# encoding:utf-8
+
+# File lib/components/image_box.rb
 
 module RGUI
   module Component
+
+    module ImageBoxType
+      Tiling = 0
+      Filling = 1
+      Responsive = 2
+    end
+
     class ImageBox < BaseComponent
 
+      # ImageBox image
+      # @return [Bitmap]
       attr_reader :image
+      # Display style
+      # @return [Integer]
       attr_reader :type
+      # Scroll lateral component values
+      # @return [Integer]
       attr_reader :x_wheel
+      # Scroll vertical component values
+      # @return [Integer]
       attr_reader :y_wheel
 
       def initialize(conf)
         super(conf)
-
+        @image = conf.image || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
+        @sprite = Sprite.new(Viewport.new)
+        @sprite.viewport.rect = Rect.new(@x, @y, @width, @height)
+        @sprite.x, @sprite.y = @x, @y
+        @sprite.z = @z if @z
+        @type = conf[:type] || 0
+        @x_wheel = conf[:x_wheel] || 0
+        @y_wheel = conf[:y_wheel] || 0
+        @sprite.bitmap = @type == ImageBoxType::Responsive ? @image : Bitmap.new(@width, @height)
+        def_attrs_writer :image, :type, :x_wheel, :y_wheel
         create
+      end
+
+      def def_event_callback
+        super
+        @event_manager.on([:change_x, :change_y, :move, :move_to, :change_width, :change_height, :change_size,
+                           :change_image, :change_type, :x_scroll, :y_scroll, :change_x_wheel, :change_wheel]) do
+          refresh
+        end
       end
 
       def create
         super
+        refresh
+      end
+
+      def refresh
+        case @type
+          when ImageBoxType::Tiling
+            @sprite.bitmap = @image
+            @sprite.viewport.rect = Rect.new(@x + @x_wheel, @y + @y_wheel, @width, @height)
+          when ImageBoxType::Filling
+            @sprite.bitmap = @image
+            @sprite.zoom_x = @width / @image.width
+            @sprite.zoom_y = @height / @image.height
+          when ImageBoxType::Responsive
+            @sprite.bitmap = @image
+          else
+            raise "ImageBox:type error"
+        end
       end
 
       def x_scroll(value)
-
+        return if value == 0 || @type != 0
+        @x_wheel += value
+        @event_manager.trigger(:x_scroll)
       end
 
       def y_scroll(value)
-
+        return if value == 0 || @type != 0
+        @y_wheel += value
+        @event_manager.trigger(:y_scroll)
       end
 
     end
   end
-end
-
-# File C:/Users/z1522/Documents/GitHub/RGUI/lib/components/index.rb
-
-# File lib/rgui.rb
-# encoding:utf-8
-
-module RGUI
-
-  MOUSE = true
-  KEYBOARD = true
-  CONTROLS = 0
-
 end
