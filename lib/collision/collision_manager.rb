@@ -32,7 +32,7 @@ module RGUI
         @boxes.each { |box| box.update_size(object.width, object.height) }
       end
 
-      def hit(x, y)
+      def point_hit(x, y)
         @boxes.each {|box| return true if box.hit(x, y) }
       end
 

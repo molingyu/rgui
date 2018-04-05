@@ -7,29 +7,39 @@ require_relative '../collision/collision_manager'
 module RGUI
   module Component
     class BaseComponent
+      # @return [Integer]
       attr_reader :x
+      # @return [Integer]
       attr_reader :y
+      # @return [Integer]
       attr_reader :z
+      # @return [Integer]
       attr_reader :width
+      # @return [Integer]
       attr_reader :height
-      attr_reader :viewport
+      # @return [Boolean]
       attr_reader :focus
+      # @return [Boolean]
       attr_reader :visible
+      # @return [Integer]
       attr_reader :opacity
+      # @return [Boolean]
       attr_reader :status
+      # @return [BaseComponent]
       attr_reader :parent
+      # @return [RGUI::Event::EventManager]
       attr_reader :event_manager
+      # @return [RGUI::Action::ActionManager]
       attr_reader :action_manager
+      # @return [RGUI::Collision::CollisionManager]
       attr_reader :collision_manager
 
       def initialize(conf = {})
         @x = conf[:x] || 0
         @y = conf[:y] || 0
-        @z = conf[:z]
+        @z = conf[:z] || 0
         @width = conf[:width] || 0
         @height = conf[:height] || 0
-        @viewport = conf[:viewport]
-        @z = @viewport.z if @viewport
         @focus = conf[:focus]
         @visible = conf[:visible]
         @opacity = conf[:opacity] if 255
@@ -38,16 +48,14 @@ module RGUI
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
         @collision_manager = Collision::CollisionManager.new(self)
-        def_attrs_writer([
-            :x, :y, :z, :width, :height, :viewport,
-            :focus, :visible, :opacity, :status, :parent
-        ])
+        def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus, :visible, :opacity, :status, :parent
+
       end
 
-      def def_attrs_writer(attrs)
+      def def_attrs_writer(*attrs)
         attrs.each do |atttr_name|
           define_singleton_method((atttr_name.to_s + '=').to_sym) do |value|
-            attr_value = class_variable_get(('@' + atttr_name.to_s).to_sym)
+            attr_value = instance_variable_get(('@' + atttr_name.to_s).to_sym)
             unless attr_value == value
               old, attr_value = attr_value, value
               @event_manager.trigger(('change_' + atttr_name.to_s).to_sym, {:old => old, :new => attr_value})
@@ -57,11 +65,15 @@ module RGUI
       end
 
       def def_event_callback
-        @event_manager.on([:change_x, :change_y, :move, :move_to]) do |em|
+        @event_manager.on([:change_x, :change_y, :move, :move_to]) do
+          # @type em [RGUI::Event::EventManager]
+        |em|
           em.object.collision_manager.update_pos
         end
 
-        @event_manager.on([:change_width, :change_height, :change_size]) do |em|
+        @event_manager.on([:change_width, :change_height, :change_size]) do
+          # @type em [RGUI::Event::EventManager]
+        |em|
           em.object.collision_manager.update_size
         end
       end
@@ -74,7 +86,6 @@ module RGUI
       def update
         @event_manager.update
         @action_manager.update
-        @collision_manager.update
       end
 
       def close
