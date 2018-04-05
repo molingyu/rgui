@@ -11,9 +11,20 @@ desc "pack scripts"
 task :pack do
   require_relative './script_pack'
   FileUtils.mkdir_p('dist') unless File.exists?('dist')
-  pack('lib/index.rb', 'dist/rgui.rb')
+  rm_pack.pack({
+                   source: 'lib/index.rb',
+                   excludes: ['rgss/rgss_base.rb'],
+                   output:'dist/rgui.rb'
+               })
+end
+
+task :run_example do
+
+  %x[./example/Game.exe]
 end
 
 
+task start: [:pack, :run_example]
 
-task default: [:pack]
+
+task default: [:start]
