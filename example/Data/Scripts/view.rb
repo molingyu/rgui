@@ -13,7 +13,7 @@ class View
   end
 
   def remove_child(o)
-    @contents.delete_if {|x| x = o }
+    @contents.delete_if {|x| x == o }
   end
 
   def remove_child_at(id)

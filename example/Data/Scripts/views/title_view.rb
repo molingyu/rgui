@@ -2,7 +2,7 @@
 #author: shitake
 #data: 16-4-20
 
-class TitleView < View
+class TestView < View
 
   def initialize
     super
@@ -10,6 +10,7 @@ class TitleView < View
     @mouse_pos = Sprite.new
     @mouse_pos.bitmap = Bitmap.new(544, 416)
     @mouse_pos.x, @mouse_pos.y = 1, 1
+
 
   end
   
