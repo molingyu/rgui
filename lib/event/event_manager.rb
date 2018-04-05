@@ -1,5 +1,6 @@
 # encoding:utf-8
 
+require_relative '../rgui'
 require_relative 'event'
 require_relative 'event_helper'
 require_relative 'event_callback_fiber'
@@ -40,7 +41,6 @@ module RGUI
       include EventHelper
 
       def initialize(object)
-        EventManager.init
         @object = object
         @events = {}
         @event_callback_fibers = {}
@@ -142,7 +142,9 @@ module RGUI
         end
         _on(name, immediately, true, callback)
       end
-
     end
+
+    EventManager.init
+
   end
 end
