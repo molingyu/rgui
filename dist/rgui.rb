@@ -1,3 +1,4 @@
+# encoding:utf-8
 # File lib/rgss/api.rb
 
 module API
@@ -293,19 +294,19 @@ module Input
     def press?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      (@keyboard[value] == 1 || @keyboard[value] == 2) ? true : false
+      (@keyboard[value] == 1 || @keyboard[value] == 2)
     end
 
     def down?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      @keyboard[value] == 1 ? true : false
+      @keyboard[value] == 1
     end
 
     def up?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      @keyboard[value] == 3 ? true : false
+      @keyboard[value] == 3
     end
 
     def get_global_pos
@@ -645,24 +646,55 @@ module RGUI
       end
 
       def time_await(time)
-        await { Time.now - current_fiber.time > time }
+        await { Time.now - @filter_timers[@current_fiber.callback.object_id] > time }
       end
 
       def count_await(count)
-        await { current_fiber.count > count }
+        await { @filter_counters[@current_fiber.callback.object_id] > count }
       end
 
       def filter(info = nil, &callback)
         Fiber.yield true unless callback[info]
       end
 
-      def time_filter(time)
-        filter { Time.now - current_fiber.time > time }
+      def time_equal(sym, time)
+        if @filter_timers[@current_fiber.callback.object_id]
+          value = (Time.now - @filter_timers[@current_fiber.callback.object_id]).send(sym, time)
+          @filter_timers[current_fiber.callback.object_id] = nil
+          value
+        else
+          @filter_timers[@current_fiber.callback.object_id] = Time.now
+          Fiber.yield true
+        end
       end
 
-      def count_filter(count)
-        filter { current_fiber.count > count }
+      def time_max(time)
+        time_equal(:>, time)
       end
+
+      def time_min(time)
+        time_equal(:<, time)
+      end
+
+      def count_equal(sym, count)
+        if @filter_counters[@current_fiber.callback.object_id]
+          value = @filter_counters[@current_fiber.callback.object_id].send(sym, count)
+          @filter_counters[current_fiber.callback.object_id] = nil
+          value
+        else
+          @filter_counters[@current_fiber.callback.object_id] = 1
+          Fiber.yield true
+        end
+      end
+
+      def count_max(count)
+        count_equal(:>, count)
+      end
+
+      def count_min(count)
+        count_equal(:<, count)
+      end
+
     end
   end
 end
@@ -683,20 +715,12 @@ module RGUI
       # event callback
       # @return [Callback]
       attr_reader :callback
-      # event trigger time
-      # @return [Time]
-      attr_reader :time
-      # event trigger time
-      # @return [Integer]
-      attr_accessor :count
 
       # @param [EventManager] helper
       # @param [Symbol] name
       # @param [Callback] callback
       # @param [Hash] info
       def initialize(helper, name, callback, info)
-        @time = Time.now
-        @count = 1
         @name = name
         @info = info
         @callback = callback
@@ -737,12 +761,9 @@ end
 module RGUI
   module Event
     class Callback < Proc
-      attr_reader :async
       attr_reader :immediately
-
-      def initialize(async, immediately, &callback)
+      def initialize(immediately, &callback)
         super(&callback)
-        @async = async
         @immediately = immediately
       end
     end
@@ -750,18 +771,32 @@ module RGUI
     # Event manager.
     class EventManager
       class << self
-        attr_accessor :type_getters
+        attr_reader :type_getters
 
         # @param [Symbol] name  event name.
         # @return [Symbol] event type.
         def get_type(name)
           @type_getters.each do |_, getter|
-            return getter[name] if getter[name]
+            if getter[name]
+              return getter[name]
+            end
           end
+          [name, nil]
+        end
+
+        def add(type, &type_proc)
+          @type_getters[type] = type_proc
         end
 
         def init
-          @type_getters = {:event_system => proc{ |name| return :event_system if /^event_manager_.*/.match(name.to_s) } }
+          @type_getters = {}
+          add(:event_system){ |name|  [name, :event_system] if name.to_s =~ /^event_manager_.*/ }
+          add(:mouse){ |name| [name, :mouse] if name.to_s =~ /^mouse_.*/ }
+          add(:keyboard){ |name| [name, :keypress] if Input::KEY_VALUE.include?(name) }
+          add(:keyup){ |name| [$1.to_sym, :keyup] if name.to_s =~ /^keyup_(.*)/ }
+          add(:keydown){ |name| [$1.to_sym, :keydown] if name.to_s =~ /^keydown_(.*)/ }
+          add(:keypress){ |name| [$1.to_sym, :keypress] if name.to_s =~ /^keypress_(.*)/ }
+          add(:click){ |name| [:MOUSE_LB, :keyup] if name == :click }
         end
 
       end
@@ -770,21 +805,25 @@ module RGUI
 
       # @return [RGUI::Component::BaseComponent]
       attr_reader :object
+      attr_reader :filter_timers
+      attr_reader :filter_counters
 
       # @param [RGUI::Component::BaseComponent] object
       def initialize(object)
         @object = object
         @events = {}
-        @event_callback_fibers = {}
+        @event_callback_fibers = []
         @mouse_focus = false
         @keyboard_events = []
+        @filter_timers = {}
+        @filter_counters = {}
       end
 
       def update_fiber
         return if @event_callback_fibers.length == 0
         @event_callback_fibers.each do
           # @type fiber [EventCallbackFiber]
-        |_, fiber|
+        |fiber|
           @current_fiber = fiber
           fiber.resume
           @current_fiber = nil
@@ -794,7 +833,7 @@ module RGUI
 
       def update_mouse
         x, y = Input.get_pos
-        collision = @object.collision_manager
+        collision = @object.collision_box
         if !@mouse_focus && collision.point_hit(x, y)
           trigger(:mouse_in, {:x=>x, :y=>y})
           @mouse_focus = true
@@ -807,15 +846,14 @@ module RGUI
 
       # @param [Event] event
       def update_keyboard(event)
-        type = event.type
-        return if name['MOUSE'] && !@mouse_focus
-        case type
-          when 'keydown'
-            trigger(event.name) if Input.down?(name)
-          when 'keypress'
-            trigger(event.name) if Input.press?(name)
-          when 'keyup'
-            trigger(event.name) if Input.up?(name)
+        return if event.name.to_s.include?('MOUSE') && !@mouse_focus
+        case event.type
+          when :keydown
+            return trigger(event.name) if Input.down?(event.name)
+          when :keypress
+            return trigger(event.name) if Input.press?(event.name)
+          when :keyup
+            return trigger(event.name) if Input.up?(event.name)
           else
             raise 'Error:Keyboard event type error!'
         end
@@ -824,7 +862,7 @@ module RGUI
       def update
         update_fiber
         if @object.status && @object.visible
-          update_mouse if RGUI::MOUSE
+          update_mouse
           @keyboard_events.each{ |o| update_keyboard(o) } if @object.focus
         end
       end
@@ -838,12 +876,9 @@ module RGUI
         event.each do
           # @type callback [Callback]
         |callback|
-          next callback[info] if !callback.async && callback.immediately
-          if @event_callback_fibers[callback.object_id]
-            @event_callback_fibers[callback.object_id].count += 1
-          else
-            @event_callback_fibers[callback.object_id] = EventCallbackFiber.new(self, name, callback, info)
-          end
+          next callback[info] if callback.immediately
+          @filter_counters[callback.object_id] += 1 if @filter_counters[name]
+          @event_callback_fibers << EventCallbackFiber.new(self, name, callback, info)
         end
       end
 
@@ -855,12 +890,6 @@ module RGUI
         end
       end
 
-      # @private
-      def _on(name, immediately, async, callback)
-        @events[name] = Event.new(name, EventManager.get_type(name)) unless @events[name]
-        @events[name].push(Callback.new(async, immediately, &callback))
-      end
-
       # @param [Symbol|Array<Symbol>] name
       # @param [Boolean] immediately
       # @param [Proc] callback
@@ -868,18 +897,14 @@ module RGUI
         if name.class == Array
           return name.each{ |str| on(str, false, &callback)  }
         end
-        _on(name, immediately, false, callback)
+        name, type = EventManager.get_type(name)
+        @events[name] = Event.new(name, type) unless @events[name]
+        @events[name].push(Callback.new(immediately, &callback))
+        if [:keydown, :keyup, :keypress].include? type
+          @keyboard_events << @events[name] unless  @keyboard_events.include? @events[name]
+        end
       end
 
-      # @param [Symbol|Array<Symbol>] name
-      # @param [Boolean] immediately
-      # @param [Proc] callback
-      def on_async(name, immediately = false, &callback)
-        if name.class == Array
-          return name.each{ |str| on_async(str, false, &callback)  }
-        end
-        _on(name, immediately, true, callback)
-      end
     end
 
     EventManager.init
@@ -1000,7 +1025,6 @@ module RGUI
       end
 
       def update
-        return @object.event_manager.trigger(:action_end) if @actions == []
         @actions.each do |action|
           action.update(@object)
           @actions.delete unless action.alive?
@@ -1043,11 +1067,33 @@ module RGUI
   end
 end
 
-# File lib/collision/box/aabb.rb
+# File lib/collision/collision_base.rb
 
 module RGUI
   module Collision
-    class AABB
+    class CollisionBase
+
+      def hit(x, y)
+
+      end
+
+      def update_pos(x, y)
+
+      end
+
+      def update_size(width, height)
+
+      end
+
+    end
+  end
+end
+
+# File lib/collision/aabb.rb
+
+module RGUI
+  module Collision
+    class AABB < CollisionBase
 
       def initialize(x, y, width, height)
         @x = x
@@ -1056,7 +1102,7 @@ module RGUI
         @height = height
       end
 
-      def hit(x, y)
+      def point_hit(x, y)
         @x < x && x < (@x + @width) && @y < y && y < (@y + @height)
       end
 
@@ -1065,50 +1111,10 @@ module RGUI
         @y = y
       end
 
-      def update_size(x, y)
+      def update_size(width, height)
         @width = width
         @height = height
       end
-    end
-  end
-end
-
-# File lib/collision/collision_manager.rb
-
-module RGUI
-  module Collision
-    class CollisionManager
-
-      attr_reader :object
-
-      def initialize(object)
-        @object = object
-        @boxes = []
-        default_create
-      end
-
-      def default_create
-        box = AABB.new(object.x, object.y, object.width, object.height)
-        @boxes.push(box)
-      end
-
-      def update_create(&block)
-        @boxes.clear
-        block[self]
-      end
-
-      def update_pos
-        @boxes.each { |box| box.update_pos(object.x, object.y) }
-      end
-
-      def update_size
-        @boxes.each { |box| box.update_size(object.width, object.height) }
-      end
-
-      def point_hit(x, y)
-        @boxes.each {|box| return true if box.hit(x, y) }
-      end
-
     end
   end
 end
@@ -1142,8 +1148,8 @@ module RGUI
       attr_reader :event_manager
       # @return [RGUI::Action::ActionManager]
       attr_reader :action_manager
-      # @return [RGUI::Collision::CollisionManager]
-      attr_reader :collision_manager
+      # @return [RGUI::Collision::CollisionBase]
+      attr_reader :collision_box
 
       def initialize(conf = {})
         @x = conf[:x] || 0
@@ -1151,16 +1157,15 @@ module RGUI
         @z = conf[:z] || 0
         @width = conf[:width] || 0
         @height = conf[:height] || 0
-        @focus = conf[:focus]
-        @visible = conf[:visible]
+        @focus = conf[:focus] || false
+        @visible = conf[:visible] || true
         @opacity = conf[:opacity] if 255
-        @status = conf[:status]
+        @status = conf[:status] || true
         @parent = conf[:parent]
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
-        @collision_manager = Collision::CollisionManager.new(self)
+        @collision_box = Collision::AABB.new(@x, @y, @width, @height)
         def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus, :visible, :opacity, :status, :parent
-
       end
 
       def def_attrs_writer(*attrs)
@@ -1178,14 +1183,24 @@ module RGUI
       def def_event_callback
         @event_manager.on([:change_x, :change_y, :move, :move_to]) do
           # @type em [RGUI::Event::EventManager]
-        |em|
-          em.object.collision_manager.update_pos
+        |em, info|
+          p 'change_pos', info
+          em.object.collision_box.update_pos(info[:new][:x], info[:new][:y])
         end
 
         @event_manager.on([:change_width, :change_height, :change_size]) do
           # @type em [RGUI::Event::EventManager]
-        |em|
-          em.object.collision_manager.update_size
+        |em, info|
+          p info
+          em.object.collision_box.update_size(info[:new][:width], info[:new][:height])
+        end
+
+        # click => double click
+        @event_manager.on(:click)do
+          # @type helper [RGUI::Event::EventManager|RGUI::Event::EventHelper]
+        |helper|
+          helper.filter{ helper.time_min(0.3) }
+          helper.trigger(:double_click)
         end
       end
 
@@ -1217,61 +1232,61 @@ module RGUI
 
       def get_focus
         return if @focus
-        self.focus = true
+        @focus = true
         @event_manager.trigger(:get_focus)
       end
 
       def lost_focus
         return unless @focus
-        self.focus = false
+        @focus = false
         @event_manager.trigger(:lost_focus)
       end
 
       def show
         return if @visible
-        self.visible = true
+        @visible = true
         @event_manager.trigger(:show)
       end
 
       def hide
         return unless @visible
-        self.visible = false
+        @visible = false
         @event_manager.trigger(:hide)
       end
 
       def enable
         return if @status
-        self.status = true
+        @status = true
         @event_manager.trigger(:enable)
       end
 
       def disable
         return unless @status
-        self.status = false
+        @status = false
         @event_manager.trigger(:disable)
       end
 
       def move(x, y = x)
         return if x == 0 && y == 0
         old = {:x => self.x, :y => self.y }
-        self.x += x
-        self.y += y || x
+        @x += x
+        @y += y || x
         @event_manager.trigger(:move, {:old => old, :new => {:x => self.x, :y => self.y }})
       end
 
       def move_to(x, y = x)
         return if @x == x && @y == y
         old = {:x => self.x, :y => self.y }
-        self.x = x
-        self.y = y
+        @x = x
+        @y = y
         @event_manager.trigger(:move_to, {:old => old, :new => {:x => self.x, :y => self.y }})
       end
 
-      def change_size(width, height = width)
+      def change_size(width, height)
         return if @width == width && @height == height
         old = { :width => self.width, :height => self.height }
-        self.width = width
-        self.height = height
+        @width = width
+        @height = height
         @event_manager.trigger(:change_size, {:old => old, :new => { :width => self.width, :height => self.height }})
       end
     end
@@ -1306,15 +1321,13 @@ module RGUI
 
       def initialize(conf)
         super(conf)
-        @image = conf.image || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
-        @sprite = Sprite.new(Viewport.new)
-        @sprite.viewport.rect = Rect.new(@x, @y, @width, @height)
+        @image = conf[:image] || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
+        @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
         @type = conf[:type] || 0
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
-        @sprite.bitmap = @type == ImageBoxType::Responsive ? @image : Bitmap.new(@width, @height)
         def_attrs_writer :image, :type, :x_wheel, :y_wheel
         create
       end
@@ -1336,27 +1349,29 @@ module RGUI
         case @type
           when ImageBoxType::Tiling
             @sprite.bitmap = @image
-            @sprite.viewport.rect = Rect.new(@x + @x_wheel, @y + @y_wheel, @width, @height)
+            @sprite.src_rect = Rect.new(@x_wheel, @y_wheel, @width, @height)
           when ImageBoxType::Filling
             @sprite.bitmap = @image
-            @sprite.zoom_x = @width / @image.width
-            @sprite.zoom_y = @height / @image.height
+            p @width.to_f  / @image.width, @height.to_f  / @image.height
+            @sprite.zoom_x = @width.to_f / @image.width
+            @sprite.zoom_y = @height.to_f / @image.height
           when ImageBoxType::Responsive
             @sprite.bitmap = @image
+            change_size(@image.width, @image.height)
           else
             raise "ImageBox:type error"
         end
       end
 
       def x_scroll(value)
-        return if value == 0 || @type != 0
-        @x_wheel += value
+        return if value == 0 || @type != ImageBoxType::Tiling
+        @x_wheel += value if @x_wheel + value > 0 && @x_wheel + value < @image.width - @width
         @event_manager.trigger(:x_scroll)
       end
 
       def y_scroll(value)
-        return if value == 0 || @type != 0
-        @y_wheel += value
+        return if value == 0 || @type != ImageBoxType::Tiling
+        @y_wheel += value if @y_wheel + value > 0 && @y_wheel + value < @image.height - @height
         @event_manager.trigger(:y_scroll)
       end
 

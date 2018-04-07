@@ -6,31 +6,27 @@ class Game
 
   attr_accessor :exit,:view, :start_view
 
-  def init(title, width, height, &block)
+  def init(width, height, &block)
     Graphics.resize_screen(width, height)
-    @debug_fiber = nil
+    @debug_fiber = Fiber.new do
+      puts 'RGSS Debug Console by shitake!-Version:0.1.0'
+      loop do
+        print ">"
+        code = gets.chomp
+        Fiber.yield if code == 'exit'
+        begin
+          p eval(code, TOPLEVEL_BINDING)
+        rescue Exception
+          p $1
+        end
+      end
+    end
     block.call
     init_view
   end
 
   def debug
-    if @debug_fiber
-      @debug_fiber.resume
-    else
-      @debug_fiber = Fiber.new do
-        puts 'RGSS Debug Console by shitake!-Version:0.1.0'
-        loop do
-          print ">\u200a"
-          code = gets.chomp
-          Fiber.yield if code == 'quit'
-          begin
-            p eval(code, TOPLEVEL_BINDING)
-          rescue Exception
-            p $1
-          end
-        end
-      end
-    end
+    @debug_fiber.resume
   end
 
   def get_path(path)

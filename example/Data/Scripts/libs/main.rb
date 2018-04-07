@@ -1,1 +1,1 @@
-require_relative '../../../../lib/rgui'
+require_relative '../../../../dist/rgui'
