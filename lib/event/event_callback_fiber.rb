@@ -1,4 +1,5 @@
 # encoding:utf-8
+require_relative 'event_manager' #delete
 
 module RGUI
   module Event
@@ -14,21 +15,12 @@ module RGUI
       # event callback
       # @return [Callback]
       attr_reader :callback
-      # event trigger time
-      # @return [Time]
-      attr_reader :time
-      # event trigger time
-      # @return [Integer]
-      attr_reader :count
 
-
-      # @param [EventHelper] helper
+      # @param [EventManager] helper
       # @param [Symbol] name
       # @param [Callback] callback
       # @param [Hash] info
       def initialize(helper, name, callback, info)
-        @time = Time.now
-        @count = 1
         @name = name
         @info = info
         @callback = callback

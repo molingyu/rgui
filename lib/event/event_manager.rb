@@ -7,50 +7,70 @@ require_relative 'event_callback_fiber'
 
 module RGUI
   module Event
+    class Callback < Proc
+      attr_reader :immediately
+      def initialize(immediately, &callback)
+        super(&callback)
+        @immediately = immediately
+      end
+    end
+
     # Event manager.
     class EventManager
-
-      class Callback < Proc
-        attr_reader :async
-        attr_reader :immediately
-
-        def initialize(async, immediately, &callback)
-          super(&callback)
-          @async = async
-          @immediately = immediately
-        end
-      end
-
       class << self
-        attr_accessor :type_getters
+        attr_reader :type_getters
 
         # @param [Symbol] name  event name.
         # @return [Symbol] event type.
         def get_type(name)
           @type_getters.each do |_, getter|
-            return getter[name] if getter[name]
+            if getter[name]
+              return getter[name]
+            end
           end
+          [name, nil]
+        end
+
+        def add(type, &type_proc)
+          @type_getters[type] = type_proc
         end
 
         def init
-          @type_getters = {:event_system => proc{ |name| return :event_system if /^event_manager_.*/.match(name.to_s) } }
+          @type_getters = {}
+          add(:event_system){ |name|  [name, :event_system] if name.to_s =~ /^event_manager_.*/ }
+          add(:mouse){ |name| [name, :mouse] if name.to_s =~ /^mouse_.*/ }
+          add(:keyboard){ |name| [name, :keypress] if Input::KEY_VALUE.include?(name) }
+          add(:keyup){ |name| [$1.to_sym, :keyup] if name.to_s =~ /^keyup_(.*)/ }
+          add(:keydown){ |name| [$1.to_sym, :keydown] if name.to_s =~ /^keydown_(.*)/ }
+          add(:keypress){ |name| [$1.to_sym, :keypress] if name.to_s =~ /^keypress_(.*)/ }
+          add(:click){ |name| [:MOUSE_LB, :keyup] if name == :click }
         end
 
       end
 
       include EventHelper
 
+      # @return [RGUI::Component::BaseComponent]
+      attr_reader :object
+      attr_reader :filter_timers
+      attr_reader :filter_counters
+
+      # @param [RGUI::Component::BaseComponent] object
       def initialize(object)
         @object = object
         @events = {}
-        @event_callback_fibers = {}
+        @event_callback_fibers = []
         @mouse_focus = false
         @keyboard_events = []
+        @filter_timers = {}
+        @filter_counters = {}
       end
 
       def update_fiber
-        return if @event_callback_fibers.length == []
-        @event_callback_fibers.each do |fiber|
+        return if @event_callback_fibers.length == 0
+        @event_callback_fibers.each do
+          # @type fiber [EventCallbackFiber]
+        |fiber|
           @current_fiber = fiber
           fiber.resume
           @current_fiber = nil
@@ -60,27 +80,27 @@ module RGUI
 
       def update_mouse
         x, y = Input.get_pos
-        collision = @object.collision_manager
+        collision = @object.collision_box
         if !@mouse_focus && collision.point_hit(x, y)
-          trigger('mouse_in', {:x=>x, :y=>y})
+          trigger(:mouse_in, {:x=>x, :y=>y})
           @mouse_focus = true
         elsif @mouse_focus && !collision.point_hit(x, y)
-          trigger('mouse_out', {:x=>x, :y=>y})
+          trigger(:mouse_out, {:x=>x, :y=>y})
           @mouse_focus = false
         end
-        trigger('mouse_scroll', {:value => Input.scroll_value}) if Input.scroll?
+        trigger(:mouse_scroll, {:value => Input.scroll_value}) if Input.scroll?
       end
 
+      # @param [Event] event
       def update_keyboard(event)
-        type, name = event.name,split('|')
-        return if name['MOUSE'] && !@mouse_focus
-        case type
-          when 'keydown'
-            trigger(event.name) if Input.down?(name)
-          when 'keypress'
-            trigger(event.name) if Input.press?(name)
-          when 'keyup'
-            trigger(event.name) if Input.up?(name)
+        return if event.name.to_s.include?('MOUSE') && !@mouse_focus
+        case event.type
+          when :keydown
+            return trigger(event.name) if Input.down?(event.name)
+          when :keypress
+            return trigger(event.name) if Input.press?(event.name)
+          when :keyup
+            return trigger(event.name) if Input.up?(event.name)
           else
             raise 'Error:Keyboard event type error!'
         end
@@ -89,23 +109,23 @@ module RGUI
       def update
         update_fiber
         if @object.status && @object.visible
-          update_mouse if RGUI::MOUSE
-          @keyboard_events.each{ |o| update_keyboard(o) } if RGUI::KEYBOARD
+          update_mouse
+          @keyboard_events.each{ |o| update_keyboard(o) } if @object.focus
         end
       end
 
       # @param [Symbol] name
       # @param [Hash] info
       def trigger(name, info = {})
+        # @type [Event]
         event = @events[name]
         return unless event
-        event.each do |callback|
-          next callback[info] if !callback.async && callback.immediately
-          if @event_callback_fibers[callback.object_id]
-            @event_callback_fibers[callback.object_id].count += 1
-          else
-            @event_callback_fibers[callback.object_id] = EventCallbackFiber.new(self, name, callback, info)
-          end
+        event.each do
+          # @type callback [Callback]
+        |callback|
+          next callback[info] if callback.immediately
+          @filter_counters[callback.object_id] += 1 if @filter_counters[name]
+          @event_callback_fibers << EventCallbackFiber.new(self, name, callback, info)
         end
       end
 
@@ -117,31 +137,21 @@ module RGUI
         end
       end
 
-      # @private
-      def _on(name, immediately, async, callback)
-        @events[name] = Event.new(name, EventManager.get_type(name)) unless @events[name]
-        @events[name].push(Callback.new(async, immediately, &callback))
-      end
-
       # @param [Symbol|Array<Symbol>] name
       # @param [Boolean] immediately
       # @param [Proc] callback
       def on(name, immediately = false, &callback)
         if name.class == Array
-          return names.each{ |str| on(str, false, &callback)  }
+          return name.each{ |str| on(str, false, &callback)  }
         end
-        _on(name, immediately, false, callback)
+        name, type = EventManager.get_type(name)
+        @events[name] = Event.new(name, type) unless @events[name]
+        @events[name].push(Callback.new(immediately, &callback))
+        if [:keydown, :keyup, :keypress].include? type
+          @keyboard_events << @events[name] unless  @keyboard_events.include? @events[name]
+        end
       end
 
-      # @param [Symbol|Array<Symbol>] name
-      # @param [Boolean] immediately
-      # @param [Proc] callback
-      def on_async(name, immediately = false, &callback)
-        if name.class == Array
-          return names.each{ |str| on_async(str, false, &callback)  }
-        end
-        _on(name, immediately, true, callback)
-      end
     end
 
     EventManager.init

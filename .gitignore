@@ -6,3 +6,4 @@
 # ci
 doc
 .yardoc
+Gemfile.lock

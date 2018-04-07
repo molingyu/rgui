@@ -59,8 +59,8 @@ module RmPack
       @cont << @source
       get_requires
       file = create_file
-      file.write reorder(@source, @visited[@source]).map { |f|
-        file_str = get_file(f).strip
+      file.write "# encoding:utf-8\n" + reorder(@source, @visited[@source]).map { |f|
+        file_str = get_file(f)
         next '' if file_str == ''
         @count += 1
         puts f
