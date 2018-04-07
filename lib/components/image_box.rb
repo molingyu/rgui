@@ -28,15 +28,13 @@ module RGUI
 
       def initialize(conf)
         super(conf)
-        @image = conf.image || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
-        @sprite = Sprite.new(Viewport.new)
-        @sprite.viewport.rect = Rect.new(@x, @y, @width, @height)
+        @image = conf[:image] || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
+        @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
         @type = conf[:type] || 0
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
-        @sprite.bitmap = @type == ImageBoxType::Responsive ? @image : Bitmap.new(@width, @height)
         def_attrs_writer :image, :type, :x_wheel, :y_wheel
         create
       end
@@ -58,27 +56,29 @@ module RGUI
         case @type
           when ImageBoxType::Tiling
             @sprite.bitmap = @image
-            @sprite.viewport.rect = Rect.new(@x + @x_wheel, @y + @y_wheel, @width, @height)
+            @sprite.src_rect = Rect.new(@x_wheel, @y_wheel, @width, @height)
           when ImageBoxType::Filling
             @sprite.bitmap = @image
-            @sprite.zoom_x = @width / @image.width
-            @sprite.zoom_y = @height / @image.height
+            p @width.to_f  / @image.width, @height.to_f  / @image.height
+            @sprite.zoom_x = @width.to_f / @image.width
+            @sprite.zoom_y = @height.to_f / @image.height
           when ImageBoxType::Responsive
             @sprite.bitmap = @image
+            change_size(@image.width, @image.height)
           else
             raise "ImageBox:type error"
         end
       end
 
       def x_scroll(value)
-        return if value == 0 || @type != 0
-        @x_wheel += value
+        return if value == 0 || @type != ImageBoxType::Tiling
+        @x_wheel += value if @x_wheel + value > 0 && @x_wheel + value < @image.width - @width
         @event_manager.trigger(:x_scroll)
       end
 
       def y_scroll(value)
-        return if value == 0 || @type != 0
-        @y_wheel += value
+        return if value == 0 || @type != ImageBoxType::Tiling
+        @y_wheel += value if @y_wheel + value > 0 && @y_wheel + value < @image.height - @height
         @event_manager.trigger(:y_scroll)
       end
 

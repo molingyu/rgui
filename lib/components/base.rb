@@ -2,7 +2,7 @@
 
 require_relative '../event/event_manager'
 require_relative '../action/action_manager'
-require_relative '../collision/collision_manager'
+require_relative '../collision/index'
 
 module RGUI
   module Component
@@ -31,8 +31,8 @@ module RGUI
       attr_reader :event_manager
       # @return [RGUI::Action::ActionManager]
       attr_reader :action_manager
-      # @return [RGUI::Collision::CollisionManager]
-      attr_reader :collision_manager
+      # @return [RGUI::Collision::CollisionBase]
+      attr_reader :collision_box
 
       def initialize(conf = {})
         @x = conf[:x] || 0
@@ -40,16 +40,15 @@ module RGUI
         @z = conf[:z] || 0
         @width = conf[:width] || 0
         @height = conf[:height] || 0
-        @focus = conf[:focus]
-        @visible = conf[:visible]
+        @focus = conf[:focus] || false
+        @visible = conf[:visible] || true
         @opacity = conf[:opacity] if 255
-        @status = conf[:status]
+        @status = conf[:status] || true
         @parent = conf[:parent]
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
-        @collision_manager = Collision::CollisionManager.new(self)
+        @collision_box = Collision::AABB.new(@x, @y, @width, @height)
         def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus, :visible, :opacity, :status, :parent
-
       end
 
       def def_attrs_writer(*attrs)
@@ -67,14 +66,24 @@ module RGUI
       def def_event_callback
         @event_manager.on([:change_x, :change_y, :move, :move_to]) do
           # @type em [RGUI::Event::EventManager]
-        |em|
-          em.object.collision_manager.update_pos
+        |em, info|
+          p 'change_pos', info
+          em.object.collision_box.update_pos(info[:new][:x], info[:new][:y])
         end
 
         @event_manager.on([:change_width, :change_height, :change_size]) do
           # @type em [RGUI::Event::EventManager]
-        |em|
-          em.object.collision_manager.update_size
+        |em, info|
+          p info
+          em.object.collision_box.update_size(info[:new][:width], info[:new][:height])
+        end
+
+        # click => double click
+        @event_manager.on(:click)do
+          # @type helper [RGUI::Event::EventManager|RGUI::Event::EventHelper]
+        |helper|
+          helper.filter{ helper.time_min(0.3) }
+          helper.trigger(:double_click)
         end
       end
 
@@ -106,61 +115,61 @@ module RGUI
 
       def get_focus
         return if @focus
-        self.focus = true
+        @focus = true
         @event_manager.trigger(:get_focus)
       end
 
       def lost_focus
         return unless @focus
-        self.focus = false
+        @focus = false
         @event_manager.trigger(:lost_focus)
       end
 
       def show
         return if @visible
-        self.visible = true
+        @visible = true
         @event_manager.trigger(:show)
       end
 
       def hide
         return unless @visible
-        self.visible = false
+        @visible = false
         @event_manager.trigger(:hide)
       end
 
       def enable
         return if @status
-        self.status = true
+        @status = true
         @event_manager.trigger(:enable)
       end
 
       def disable
         return unless @status
-        self.status = false
+        @status = false
         @event_manager.trigger(:disable)
       end
 
       def move(x, y = x)
         return if x == 0 && y == 0
         old = {:x => self.x, :y => self.y }
-        self.x += x
-        self.y += y || x
+        @x += x
+        @y += y || x
         @event_manager.trigger(:move, {:old => old, :new => {:x => self.x, :y => self.y }})
       end
 
       def move_to(x, y = x)
         return if @x == x && @y == y
         old = {:x => self.x, :y => self.y }
-        self.x = x
-        self.y = y
+        @x = x
+        @y = y
         @event_manager.trigger(:move_to, {:old => old, :new => {:x => self.x, :y => self.y }})
       end
 
-      def change_size(width, height = width)
+      def change_size(width, height)
         return if @width == width && @height == height
         old = { :width => self.width, :height => self.height }
-        self.width = width
-        self.height = height
+        @width = width
+        @height = height
         @event_manager.trigger(:change_size, {:old => old, :new => { :width => self.width, :height => self.height }})
       end
     end
