@@ -145,19 +145,19 @@ module Input
     def press?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      (@keyboard[value] == 1 || @keyboard[value] == 2) ? true : false
+      (@keyboard[value] == 1 || @keyboard[value] == 2)
     end
 
     def down?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      @keyboard[value] == 1 ? true : false
+      @keyboard[value] == 1
     end
 
     def up?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      @keyboard[value] == 3 ? true : false
+      @keyboard[value] == 3
     end
 
     def get_global_pos

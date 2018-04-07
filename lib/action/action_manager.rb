@@ -35,7 +35,6 @@ module RGUI
       end
 
       def update
-        return @object.event_manager.trigger(:action_end) if @actions == []
         @actions.each do |action|
           action.update(@object)
           @actions.delete unless action.alive?
