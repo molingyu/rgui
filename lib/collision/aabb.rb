@@ -1,8 +1,10 @@
 # encoding:utf-8
 
+require_relative 'collision_base'
+
 module RGUI
   module Collision
-    class AABB
+    class AABB < CollisionBase
 
       def initialize(x, y, width, height)
         @x = x
@@ -11,7 +13,7 @@ module RGUI
         @height = height
       end
 
-      def hit(x, y)
+      def point_hit(x, y)
         @x < x && x < (@x + @width) && @y < y && y < (@y + @height)
       end
 
@@ -20,7 +22,7 @@ module RGUI
         @y = y
       end
 
-      def update_size(x, y)
+      def update_size(width, height)
         @width = width
         @height = height
       end
