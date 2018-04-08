@@ -20,33 +20,35 @@ module RGUI
 
       def start(count)
         @count = count
+        self
       end
 
 
       def get(index)
-        @start_status + @proc[(@end_status - @start_status).abs, @count, index]
+        @start_status + @proc[(@end_status - @start_status), @count, index]
       end
 
     end
 
     module Easing
 
-      module Quadratic end
-      module Linear end
+      EasingBase = Struct.new(:in, :out, :in_out)
+      Quadratic = EasingBase.new
+      Linear = EasingBase.new
 
       class << self
 
         def linear_init
-          callback = proc {|v, c, i| return v * (i / c).floor }
-          Linear.define_singleton_method(:out, &callback)
-          Linear.define_singleton_method(:in, &callback)
-          Linear.define_singleton_method(:in_out, &callback)
+          callback = proc {|v, c, i| (v * i.to_f / c).to_i }
+          Linear.out = callback
+          Linear.in = callback
+          Linear.in_out = callback
         end
 
         def quadratic_init
-          Quadratic.define_singleton_method(:out) {}
-          Quadratic.define_singleton_method(:in) {}
-          Quadratic.define_singleton_method(:in_out) {}
+          # Quadratic.define_singleton_method(:out) {}
+          # Quadratic.define_singleton_method(:in) {}
+          # Quadratic.define_singleton_method(:in_out) {}
         end
 
       end

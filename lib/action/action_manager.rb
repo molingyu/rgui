@@ -28,7 +28,7 @@ module RGUI
 
       def add_action(name, param)
         action_class = ActionManager.actions[name]
-        raise("error action name") unless action
+        raise("error action name") unless action_class
         action = action_class.new(param)
         @actions.push(action)
         @object.event_manager.on(:action_end) { action.close }

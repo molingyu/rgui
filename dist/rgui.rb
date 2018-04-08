@@ -953,33 +953,35 @@ module RGUI
 
       def start(count)
         @count = count
+        self
       end
 
 
       def get(index)
-        @start_status + @proc[(@end_status - @start_status).abs, @count, index]
+        @start_status + @proc[(@end_status - @start_status), @count, index]
       end
 
     end
 
     module Easing
 
-      module Quadratic end
-      module Linear end
+      EasingBase = Struct.new(:in, :out, :in_out)
+      Quadratic = EasingBase.new
+      Linear = EasingBase.new
 
       class << self
 
         def linear_init
-          callback = proc {|v, c, i| return v * (i / c).floor }
-          Linear.define_singleton_method(:out, &callback)
-          Linear.define_singleton_method(:in, &callback)
-          Linear.define_singleton_method(:in_out, &callback)
+          callback = proc {|v, c, i| (v * i.to_f / c).to_i }
+          Linear.out = callback
+          Linear.in = callback
+          Linear.in_out = callback
         end
 
         def quadratic_init
-          Quadratic.define_singleton_method(:out) {}
-          Quadratic.define_singleton_method(:in) {}
-          Quadratic.define_singleton_method(:in_out) {}
+          # Quadratic.define_singleton_method(:out) {}
+          # Quadratic.define_singleton_method(:in) {}
+          # Quadratic.define_singleton_method(:in_out) {}
         end
 
       end
@@ -1018,7 +1020,7 @@ module RGUI
 
       def add_action(name, param)
         action_class = ActionManager.actions[name]
-        raise("error action name") unless action
+        raise("error action name") unless action_class
         action = action_class.new(param)
         @actions.push(action)
         @object.event_manager.on(:action_end) { action.close }
@@ -1044,17 +1046,20 @@ module RGUI
     class Breath < ActionBase
 
       def initialize(conf)
-        super(conf.speed)
-        @start_alpha = conf.start_alpha || 255
-        @end_alpha = conf.end_alpha  || 20
-        @count = conf.speed * 60
+        super(conf[:speed])
+        @start_alpha = conf[:start_alpha] || 255
+        @end_alpha = conf[:end_alpha]  || 20
+        @count = 60.to_f / @speed
+        @sym = ''
         @interpolator = Interpolator.new(@start_alpha).to(@end_alpha).easing(Easing::Linear.out).start(@count)
       end
 
       # @param [RGUI::Base] object
       def update(object)
-        object.opacity = @interpolator.get(@index - 1) if @index == @count
-        object.opacity = @interpolator.get(@index + 1) if @index == 0
+        @sym = :- if @index == @count
+        @sym = :+ if @index == 0
+        object.opacity = @interpolator.get(@index)
+        @index = @index.send(@sym, 1)
       end
 
       def close(object)
@@ -1159,7 +1164,7 @@ module RGUI
         @height = conf[:height] || 0
         @focus = conf[:focus] || false
         @visible = conf[:visible] || true
-        @opacity = conf[:opacity] if 255
+        @opacity = conf[:opacity] || 255
         @status = conf[:status] || true
         @parent = conf[:parent]
         @event_manager = Event::EventManager.new(self)
@@ -1173,7 +1178,8 @@ module RGUI
           define_singleton_method((atttr_name.to_s + '=').to_sym) do |value|
             attr_value = instance_variable_get(('@' + atttr_name.to_s).to_sym)
             unless attr_value == value
-              old, attr_value = attr_value, value
+              old = attr_value
+              instance_variable_set(('@' + atttr_name.to_s).to_sym, value)
               @event_manager.trigger(('change_' + atttr_name.to_s).to_sym, {:old => old, :new => attr_value})
             end
           end
@@ -1319,12 +1325,15 @@ module RGUI
       # @return [Integer]
       attr_reader :y_wheel
 
+      attr_reader :sprite
+
       def initialize(conf)
         super(conf)
         @image = conf[:image] || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
         @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
+        @sprite.opacity = @opacity
         @type = conf[:type] || 0
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
@@ -1334,6 +1343,9 @@ module RGUI
 
       def def_event_callback
         super
+        @event_manager.on(:change_opacity){ |em|
+          em.object.sprite.opacity = em.object.opacity
+        }
         @event_manager.on([:change_x, :change_y, :move, :move_to, :change_width, :change_height, :change_size,
                            :change_image, :change_type, :x_scroll, :y_scroll, :change_x_wheel, :change_wheel]) do
           refresh
@@ -1352,7 +1364,6 @@ module RGUI
             @sprite.src_rect = Rect.new(@x_wheel, @y_wheel, @width, @height)
           when ImageBoxType::Filling
             @sprite.bitmap = @image
-            p @width.to_f  / @image.width, @height.to_f  / @image.height
             @sprite.zoom_x = @width.to_f / @image.width
             @sprite.zoom_y = @height.to_f / @image.height
           when ImageBoxType::Responsive

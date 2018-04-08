@@ -23,6 +23,7 @@ class TestView < View
     @ImageBox.event_manager.on(:KEY_D){ |em| em.object.x_scroll(+5) }
     @ImageBox.event_manager.on(:KEY_W){ |em| em.object.y_scroll(-5) }
     @ImageBox.event_manager.on(:KEY_S){ |em| em.object.y_scroll(+5) }
+    @ImageBox.action_manager.add_action(:breath, {speed: 0.6})
   end
   
   def update
