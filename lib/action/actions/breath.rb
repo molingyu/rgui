@@ -9,17 +9,20 @@ module RGUI
     class Breath < ActionBase
 
       def initialize(conf)
-        super(conf.speed)
-        @start_alpha = conf.start_alpha || 255
-        @end_alpha = conf.end_alpha  || 20
-        @count = conf.speed * 60
+        super(conf[:speed])
+        @start_alpha = conf[:start_alpha] || 255
+        @end_alpha = conf[:end_alpha]  || 20
+        @count = 60.to_f / @speed
+        @sym = ''
         @interpolator = Interpolator.new(@start_alpha).to(@end_alpha).easing(Easing::Linear.out).start(@count)
       end
 
       # @param [RGUI::Base] object
       def update(object)
-        object.opacity = @interpolator.get(@index - 1) if @index == @count
-        object.opacity = @interpolator.get(@index + 1) if @index == 0
+        @sym = :- if @index == @count
+        @sym = :+ if @index == 0
+        object.opacity = @interpolator.get(@index)
+        @index = @index.send(@sym, 1)
       end
 
       def close(object)

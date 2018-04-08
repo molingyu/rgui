@@ -42,7 +42,7 @@ module RGUI
         @height = conf[:height] || 0
         @focus = conf[:focus] || false
         @visible = conf[:visible] || true
-        @opacity = conf[:opacity] if 255
+        @opacity = conf[:opacity] || 255
         @status = conf[:status] || true
         @parent = conf[:parent]
         @event_manager = Event::EventManager.new(self)
@@ -56,7 +56,8 @@ module RGUI
           define_singleton_method((atttr_name.to_s + '=').to_sym) do |value|
             attr_value = instance_variable_get(('@' + atttr_name.to_s).to_sym)
             unless attr_value == value
-              old, attr_value = attr_value, value
+              old = attr_value
+              instance_variable_set(('@' + atttr_name.to_s).to_sym, value)
               @event_manager.trigger(('change_' + atttr_name.to_s).to_sym, {:old => old, :new => attr_value})
             end
           end

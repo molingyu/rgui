@@ -26,12 +26,15 @@ module RGUI
       # @return [Integer]
       attr_reader :y_wheel
 
+      attr_reader :sprite
+
       def initialize(conf)
         super(conf)
         @image = conf[:image] || Bitmap.new(32, 32).fill_rect(0, 0, 32, 32, Color.new(0, 0, 0, 255))
         @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
+        @sprite.opacity = @opacity
         @type = conf[:type] || 0
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
@@ -41,6 +44,9 @@ module RGUI
 
       def def_event_callback
         super
+        @event_manager.on(:change_opacity){ |em|
+          em.object.sprite.opacity = em.object.opacity
+        }
         @event_manager.on([:change_x, :change_y, :move, :move_to, :change_width, :change_height, :change_size,
                            :change_image, :change_type, :x_scroll, :y_scroll, :change_x_wheel, :change_wheel]) do
           refresh
@@ -59,7 +65,6 @@ module RGUI
             @sprite.src_rect = Rect.new(@x_wheel, @y_wheel, @width, @height)
           when ImageBoxType::Filling
             @sprite.bitmap = @image
-            p @width.to_f  / @image.width, @height.to_f  / @image.height
             @sprite.zoom_x = @width.to_f / @image.width
             @sprite.zoom_y = @height.to_f / @image.height
           when ImageBoxType::Responsive
