@@ -14,21 +14,11 @@ end
 
 class Bitmap
 
-
-  def cut_bitmap(width, height, type)
-    case type
-      when 0
-        bitmaps = cut_row(width, height)
-      when 1
-        bitmaps = cut_rank(width, height)
-      when 2
-        bitmaps = cut_row_rank(width, height)
-      when 3
-        bitmaps = cut_rank_row(width, height)
-      else
-        raise "Error:Bitmap cut type error(#{type})."
-    end
-    bitmaps
+  def cut_bitmap(width_count, height_count)
+    return [] if height_count == 0 && width_count == 0
+    return cut_row(width_count) if height_count == 0
+    return cut_rank(height_count) if width_count == 0
+    cut_table(width_count, height_count)
   end
 
   def cut_bitmap_conf(config)
@@ -41,41 +31,34 @@ class Bitmap
     bitmaps
   end
 
-  def cut_row(width, height)
-    number = self.width / width
+  def cut_row(number)
     bitmaps = []
+    dw = self.width / number
     number.times do |i|
-      dx = width * i
-      bitmap = Bitmap.new(width,height)
-      bitmap.blt(0, 0, self, Rect.new(dx, 0, width, height))
+      dx = dw * i
+      bitmap = Bitmap.new(dw, self.height)
+      bitmap.blt(0, 0, self, Rect.new(dx, 0, dw, self.height))
       bitmaps.push(bitmap)
     end
     bitmaps
   end
 
-  def cut_rank(width, height)
-    number = self.height / height
+  def cut_rank(number)
     bitmaps = []
+    dh = self.height / number
     number.times do |i|
-      dx = height * i
-      bitmap = Bitmap.new(width,height)
-      bitmap.blt(0, 0, self, Rect.new(0, dx, width, height))
+      dx = dh * i
+      bitmap = Bitmap.new(self.width, dh)
+      bitmap.blt(0, 0, self, Rect.new(0, dx, self.width, dh))
       bitmaps.push(bitmap)
     end
     bitmaps
   end
 
-  def cut_row_rank(width, height)
+  def cut_table(width, height)
     bitmaps = []
-    w_bitmaps = cut_row(width, self.height)
-    w_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_rank(width, height) }
-    bitmaps
-  end
-
-  def cut_rank_row(width, height)
-    bitmaps = []
-    h_bitmaps = cut_rank(self.width, height)
-    h_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_row(width, height) }
+    w_bitmaps = cut_row(width)
+    w_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_rank(height) }
     bitmaps
   end
 
