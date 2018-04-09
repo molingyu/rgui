@@ -25,7 +25,6 @@ module RGUI
       # Scroll vertical component values
       # @return [Integer]
       attr_reader :y_wheel
-
       attr_reader :sprite
 
       def initialize(conf)
@@ -34,7 +33,7 @@ module RGUI
         @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
-        @sprite.opacity = @opacity
+        @sprite.opacity = @visible ? @opacity : 0
         @type = conf[:type] || 0
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
@@ -47,18 +46,20 @@ module RGUI
         @event_manager.on(:change_opacity){ |em|
           em.object.sprite.opacity = em.object.opacity
         }
-        @event_manager.on([:change_x, :change_y, :move, :move_to, :change_width, :change_height, :change_size,
+        @event_manager.on([:change_x, :change_y, :change_z, :move, :move_to, :change_width, :change_height, :change_size,
                            :change_image, :change_type, :x_scroll, :y_scroll, :change_x_wheel, :change_wheel]) do
           refresh
         end
       end
 
       def create
-        super
         refresh
+        super
       end
 
       def refresh
+        @sprite.x, @sprite.y = @x, @y
+        @sprite.z = @z if @z
         case @type
           when ImageBoxType::Tiling
             @sprite.bitmap = @image

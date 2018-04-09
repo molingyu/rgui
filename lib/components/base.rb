@@ -68,14 +68,12 @@ module RGUI
         @event_manager.on([:change_x, :change_y, :move, :move_to]) do
           # @type em [RGUI::Event::EventManager]
         |em, info|
-          p 'change_pos', info
           em.object.collision_box.update_pos(info[:new][:x], info[:new][:y])
         end
 
         @event_manager.on([:change_width, :change_height, :change_size]) do
           # @type em [RGUI::Event::EventManager]
         |em, info|
-          p info
           em.object.collision_box.update_size(info[:new][:width], info[:new][:height])
         end
 
