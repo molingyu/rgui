@@ -353,21 +353,11 @@ end
 
 class Bitmap
 
-
-  def cut_bitmap(width, height, type)
-    case type
-      when 0
-        bitmaps = cut_row(width, height)
-      when 1
-        bitmaps = cut_rank(width, height)
-      when 2
-        bitmaps = cut_row_rank(width, height)
-      when 3
-        bitmaps = cut_rank_row(width, height)
-      else
-        raise "Error:Bitmap cut type error(#{type})."
-    end
-    bitmaps
+  def cut_bitmap(width_count, height_count)
+    return [] if height_count == 0 && width_count == 0
+    return cut_row(width_count) if height_count == 0
+    return cut_rank(height_count) if width_count == 0
+    cut_table(width_count, height_count)
   end
 
   def cut_bitmap_conf(config)
@@ -380,41 +370,34 @@ class Bitmap
     bitmaps
   end
 
-  def cut_row(width, height)
-    number = self.width / width
+  def cut_row(number)
     bitmaps = []
+    dw = self.width / number
     number.times do |i|
-      dx = width * i
-      bitmap = Bitmap.new(width,height)
-      bitmap.blt(0, 0, self, Rect.new(dx, 0, width, height))
+      dx = dw * i
+      bitmap = Bitmap.new(dw, self.height)
+      bitmap.blt(0, 0, self, Rect.new(dx, 0, dw, self.height))
       bitmaps.push(bitmap)
     end
     bitmaps
   end
 
-  def cut_rank(width, height)
-    number = self.height / height
+  def cut_rank(number)
     bitmaps = []
+    dh = self.height / number
     number.times do |i|
-      dx = height * i
-      bitmap = Bitmap.new(width,height)
-      bitmap.blt(0, 0, self, Rect.new(0, dx, width, height))
+      dx = dh * i
+      bitmap = Bitmap.new(self.width, dh)
+      bitmap.blt(0, 0, self, Rect.new(0, dx, self.width, dh))
       bitmaps.push(bitmap)
     end
     bitmaps
   end
 
-  def cut_row_rank(width, height)
+  def cut_table(width, height)
     bitmaps = []
-    w_bitmaps = cut_row(width, self.height)
-    w_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_rank(width, height) }
-    bitmaps
-  end
-
-  def cut_rank_row(width, height)
-    bitmaps = []
-    h_bitmaps = cut_rank(self.width, height)
-    h_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_row(width, height) }
+    w_bitmaps = cut_row(width)
+    w_bitmaps.each{ |bitmap| bitmaps += bitmap.cut_rank(height) }
     bitmaps
   end
 
@@ -1190,14 +1173,12 @@ module RGUI
         @event_manager.on([:change_x, :change_y, :move, :move_to]) do
           # @type em [RGUI::Event::EventManager]
         |em, info|
-          p 'change_pos', info
           em.object.collision_box.update_pos(info[:new][:x], info[:new][:y])
         end
 
         @event_manager.on([:change_width, :change_height, :change_size]) do
           # @type em [RGUI::Event::EventManager]
         |em, info|
-          p info
           em.object.collision_box.update_size(info[:new][:width], info[:new][:height])
         end
 
@@ -1324,7 +1305,6 @@ module RGUI
       # Scroll vertical component values
       # @return [Integer]
       attr_reader :y_wheel
-
       attr_reader :sprite
 
       def initialize(conf)
@@ -1333,7 +1313,7 @@ module RGUI
         @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
-        @sprite.opacity = @opacity
+        @sprite.opacity = @visible ? @opacity : 0
         @type = conf[:type] || 0
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
@@ -1346,18 +1326,20 @@ module RGUI
         @event_manager.on(:change_opacity){ |em|
           em.object.sprite.opacity = em.object.opacity
         }
-        @event_manager.on([:change_x, :change_y, :move, :move_to, :change_width, :change_height, :change_size,
+        @event_manager.on([:change_x, :change_y, :change_z, :move, :move_to, :change_width, :change_height, :change_size,
                            :change_image, :change_type, :x_scroll, :y_scroll, :change_x_wheel, :change_wheel]) do
           refresh
         end
       end
 
       def create
-        super
         refresh
+        super
       end
 
       def refresh
+        @sprite.x, @sprite.y = @x, @y
+        @sprite.z = @z if @z
         case @type
           when ImageBoxType::Tiling
             @sprite.bitmap = @image
@@ -1389,3 +1371,121 @@ module RGUI
     end
   end
 end
+
+# File lib/components/sprite_button.rb
+
+module RGUI
+  module Component
+
+    class SpriteButton < BaseComponent
+
+      attr_reader :default_image
+      attr_reader :highlight_image
+      attr_reader :press_image
+      attr_reader :disable_image
+      attr_reader :sprite
+
+      def initialize(conf = {})
+        super(conf)
+        @default_image = conf[:default_image] || conf[:images][0]
+        @highlight_image = conf[:highlight_image] || conf[:images][1]
+        @press_image = conf[:press_image] || conf[:images][2]
+        @disable_image = conf[:disable_image] || conf[:images][3]
+        @sprite = Sprite.new
+        @sprite.x, @sprite.y = @x, @y
+        @sprite.z = @z if @z
+        @sprite.opacity = @visible ? @opacity : 0
+        def_attrs_writer :default_image, :highlight_image, :press_image, :disable_image
+        create
+      end
+
+
+      def create
+        super
+        @sprite.bitmap = @status ? @default_image : @disable_image
+        @width = sprite.bitmap.width
+        @height = sprite.bitmap.height
+        @collision_box.update_size(@width, @height)
+      end
+
+      def def_event_callback
+        super
+        @event_manager.on([:change_x, :change_y, :change_z, :move, :move_to, :change_width, :change_height, :change_size]) do |em|
+          sprite = em.object.sprite
+          sprite.x, sprite.y = em.object.x, em.object.y
+          sprite.z = em.object.z if em.object.z
+          sprite.zoom_x = em.object.width.to_f / sprite.bitmap.width
+          sprite.zoom_y = em.object.height.to_f / sprite.bitmap.height
+        end
+        @event_manager.on(:mouse_in){ |em| em.object.sprite.bitmap = em.object.highlight_image }
+        @event_manager.on([:mouse_out, :keyup_MOUSE_LB]){ |em| em.object.sprite.bitmap = em.object.default_image }
+        @event_manager.on(:keydown_MOUSE_LB){ |em| em.object.sprite.bitmap = em.object.press_image }
+        @event_manager.on([:change_status, :enable, :disable]){ |em|
+          em.object.sprite.bitmap = em.object.status ? em.object.default_image : em.object.disable_image
+        }
+      end
+    end
+  end
+end
+
+# File lib/resource.rb
+
+module RGUI::Resource
+
+  RESOURCES = {
+    btn_audio: '.ogg|T2dnUwACAAAAAAAAAACqfwAAAAAAAIQD5h0BHgF2b3JiaXMAAAAAAkSsAAAA|AAAAAPoAAAAAAAC4AU9nZ1MAAAAAAAAAAAAAqn8AAAEAAACvUtqpEC3/////|/////////////8EDdm9yYmlzHQAAAFhpcGguT3JnIGxpYlZvcmJpcyBJIDIw|MDUwMzA0AAAAAAEFdm9yYmlzIUJDVgEAAAEAGGNUKUaZUtJKiRlzlDFGmWKS|SomlhBZCSJ1zFFOpOdeca6y5tSCEEBpTUCkFmVKOUmkZY5ApBZlSEEtJJXQS|OiedYxBbScHWmGuLQbYchA2aUkwpxJRSikIIGVOMKcWUUkpCByV0DjrmHFOO|SihBuJxzq7WWlmOLqXSSSuckZExCSCmFkkoHpVNOQkg1ltZSKR1zUlJqQegg|hBBCtiCEDYLQkFUAAAEAwEAQGrIKAFAAABCKoRiKAoSGrAIAMgAABKAojuIo|jiM5kmNJFhAasgoAAAIAEAAAwHAUSZEUybEkS9IsS9NEUVV91TZVVfZ1Xdd1|Xdd1IDRkFQAAAQBASKeZpRogwgxkGAgNWQUAIAAAAEYowhADQkNWAQAAAQAA|Yig5iCa05nxzjoNmOWgqxeZ0cCLV5kluKubmnHPOOSebc8Y455xzinJmMWgm|tOaccxKDZiloJrTmnHOexOZBa6q05pxzxjmng3FGGOecc5q05kFqNtbmnHMW|tKY5ai7F5pxzIuXmSW0u1eacc84555xzzjnnnHOqF6dzcE4455xzovbmWm5C|F+eccz4Zp3tzQjjnnHPOOeecc84555xzgtCQVQAAEAAAQRg2hnGnIEifo4EY|RYhpyKQH3aPDJGgMcgqpR6OjkVLqIJRUxkkpnSA0ZBUAAAgAACGEFFJIIYUU|UkghhRRSiCGGGGLIKaecggoqqaSiijLKLLPMMssss8wy67CzzjrsMMQQQwyt|tBJLTbXVWGOtueecaw7SWmmttdZKKaWUUkopCA1ZBQCAAAAQCBlkkEFGIYUU|UoghppxyyimooAJCQ1YBAIAAAAIAAAA8yXNER3RER3RER3RER3REx3M8R5RE|SZRESbRMy9RMTxVV1ZVdW9Zl3fZtYRd23fd13/d149eFYVmWZVmWZVmWZVmW|ZVmWZVmC0JBVAAAIAACAEEIIIYUUUkghpRhjzDHnoJNQQiA0ZBUAAAgAIAAA|AMBRHMVxJEdyJMmSLEmTNEuzPM3TPE30RFEUTdNURVd0Rd20RdmUTdd0Tdl0|VVm1XVm2bdnWbV+Wbd/3fd/3fd/3fd/3fd/3dR0IDVkFAEgAAOhIjqRIiqRI|juM4kiQBoSGrAAAZAAABACiKoziO40iSJEmWpEme5VmiZmqmZ3qqqAKhIasA|AEAAAAEAAAAAACia4imm4imi4jmiI0qiZVqipmquKJuy67qu67qu67qu67qu|67qu67qu67qu67qu67qu67qu67qu67ouEBqyCgCQAADQkRzJkRxJkRRJkRzJ|AUJDVgEAMgAAAgBwDMeQFMmxLEvTPM3TPE30RE/0TE8VXdEFQkNWAQCAAAAC|AAAAAAAwJMNSLEdzNEmUVEu1VE21VEsVVU9VVVVVVVVVVVVVVVVVVVVVVVVV|VVVVVVVVVVVVVVVVVVU1TdM0TSA0ZCUAEAUAADpLLdbaK4CUglaDaBBkEHPv|kFNOYhCiYsxBzEF1EEJpvcfMMQat5lgxhJjEWDOHFIPSAqEhKwSA0AwAgyQB|kqYBkqYBAAAAAAAAgORpgCaKgCaKAAAAAAAAACBpGqCJIqCJIgAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAkqYBnikCmigCAAAAAAAAgCaKgGiqgKiaAAAAAAAA|AKCJIiCqIiCaKgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAkqYBmigCnigCAAAA|AAAAgCaKgKiagCiqAAAAAAAAAKCJJiCaKiCqJgAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAgAAAgAAHAIAAC6HQkBUBQJwAgMFxLAsAABxJ0iwAAHAk|S9MAAMDSNFEEAABL00QRAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAMCAAwBAgAll|oNCQlQBAFACAQTE8DWBZAMsCaBpA0wCeB/A8gCgCAAEAAAUOAAABNmhKLA5Q|aMhKACAKAMCgKJZlWZ4HTdM0UYSmaZooQtM0TxShaZomihBFzzNNeKLnmSZM|UxRNE4iiaQoAAChwAAAIsEFTYnGAQkNWAgAhAQAGR7EsT/M8zxNF01RVaJrn|iaIoiqZpqio0zfNEURRN0zRVFZrmeaIoiqapqqoKTfM8URRF01RVVYXniaIo|mqZpqqrrwvNEURRN0zRV1XUhiqJomqapqqrrukAUTdM0VVVVXReIommapqq6|riwDUTRN01RV15VlYJqqqqqq67qyDFBNVVVV15VlgKq6quu6riwDVFV1XdeV|ZRnguq7ryrJs2wBc13Vl2bYFAAAcOAAABBhBJxlVFmGjCRcegEJDVgQAUQAA|gDFMKaaUYUxCKCE0ikkIKYRMSkqplVRBSCWlUioIqaRUSkalpZRSyiCUUlIq|FYRUSiqlAACwAwcAsAMLodCQlQBAHgAAQYhSjDHGnJRSKcacc05KqRRjzjkn|pWSMMeeck1IyxphzzkkpHXPOOeeklIw555xzUkrnnHPOOSmllM4555yUUkoI|nXNOSimlc845JwAAqMABACDARpHNCUaCCg1ZCQCkAgAYHMeyNE3TPE8UNUnS|NM/zPFE0TU2yNM3zPE8UTZPneZ4oiqJpqirP8zxRFEXTVFWuK4qmaZqqqqpk|WRRF0TRVVXVhmqapqqrqujBNUVRV1XVdyLJpqqrryjJs2zRV1XVlGaiqqsqu|LAPXVVXXlWUBAOAJDgBABTasjnBSNBZYaMhKACADAIAgBCGlFEJKKYSUUggp|pRASAAAw4AAAEGBCGSg0ZEUAECcAACAkpYJOSiWhlFJKKaWUUkoppZRSSiml|lFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSiml|lFJKKaWUUkoppZNSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSiml|lFJKKaWUUkoppZSSUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkkp|pZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkop|pZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkop|pZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkop|pZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkop|pZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkoppZRSSimllFJKKaWUUkop|pZRSSimllAoA0I1wANB9MKEMFBqyEgBIBQAAjFGKMQipxVYhxJhzElprrUKI|MecktJRiz5hzEEppLbaeMccglJJai72UzklJrbUYeyodo5JSSzH23kspJaXY|Yuy9p5BCji3G2HvPMaUWW6ux915jSrHVGGPvvfcYY6ux1t577zG2VmuOBQBg|NjgAQCTYsDrCSdFYYKEhKwGAkAAAwhilGGPMOeecc05KyRhzzkEIIYQQSikZ|Y8w5CCGEEEIpJWPOOQchhFBCKKVkzDnoIIRQQiillM45Bx2EEEIJpZSSMecg|hBBCCaWUUjrnIIQQQiilhFRKKZ2DEEIoIYRSSkkphBBCCKGEUFIpKYUQQggh|hFBCSiWlEEIIIYQQSkilpJRSCCGEEEIIpZSUUgollBBCKKGkkkoppYQQSgih|pFRSKqmUEkIIJYSSSkoplVRKKCGEUgAAwIEDAECAEXSSUWURNppw4QEoNGQl|ABAFAAAZBx2UlhuAkHLUWocchBRbC5FDDFqMnXKMQUopZJAxxqSVkkLHGKTU|YkuhgxR7z7mV1AIAACAIAAgwAQQGCAq+EAJiDABAECIzREJhFSwwKIMGh3kA|8AARIREAJCYo0i4uoMsAF3Rx14EQghCEIBYHUEACDk644Yk3POEGJ+gUlToQ|AAAAAIAFAHgAAEAogIiIZq7C4gIjQ2ODo8PjA0QAAAAAALAA4AMAAAkBIiKa|uQqLC4wMjQ2ODo8PkAAAQAABAAAAABBAAAICAgAAAAAAAQAAAAICT2dnUwAE|kxgAAAAAAACqfwAAAgAAAEi3B20IGU9YQ1BNJiGE6+UPv+F6+fGnUW/MMgAA|AAgAgK0oOwYDWrrec3dps4mE7nlwonS9527SZhMJ3fPGCR/6vu/7vu/7aSMI|AAAAICEAAAAAAAAAFEaSwiCMxGPxWDQSjYSRUBASiSfF4pG38xhjDIgkBf6Z|nuBTBAdZtf9u7p0S3Rg+0xN8iuAgq/bfzb1TohuDVbA9LAkAACZCRERCAABg|kwiciBjJAIZhng1p0kJ0NCxMGecmABBvBZEaVahEqKimQkRk0kKBRQG+WV72|h7//bYX/h+cWGjbLy/7w978t8//wPEIDtLE9rAAAAAAAAIAAIAAAAACgMBYj|ERgAbSmNRqMLA2ZmEwBo45MDnsj97yh+h2nKydhzBRK5/x3F7zClnIg9VwAF|QPZERIiIRAgAOTick9sGAEiUJd+94SkZotenxBzOt7piXSXGDynBSJJrgApV|AqlCTRiQLACeyP33KH6BduX+wxYxJHL/PYpfIF05P9giBmAFEHxMRIREhAAA|ACCbCTkJAMhMFy6dWmlIQaDtwDjWwHEhOvi6YMJVgYCCYYG6ECCwAJ7I/e8s|X7oADpDI/e8sX7oADgAAIIAEkAgAAAAAAAAQgVSBKiEAnsj97yxfugBuIJH7|31m+dAHcAAAAAAAAAAAAAAAAAAAA|' ,
+
+  }
+
+  TEMP_PATH = '.temp'
+
+  class << self
+    def init
+      make_temp
+      ObjectSpace.define_finalizer("clear_temp",  proc { RGUI::Resource.clear_temp })
+    end
+
+    # @param [String] src
+    def pack_base64(src)
+      str = [open(src, 'rb').read].pack('m')
+      open(src + '.base64', 'wb'){ |f| f.write "#{File.extname(src)}|" + str.gsub("\n", '|') }
+    end
+
+    def make_temp
+      Dir.mkdir TEMP_PATH unless Dir.exist? TEMP_PATH
+    end
+
+    def make_temp_file(name, content)
+      open(name, 'wb') { |f| f.write content }
+    end
+
+    def delete_directory(path)
+      if File.directory?(path)
+        Dir.foreach(path) do |subFile|
+          if subFile != '.' and subFile != '..'
+            delete_directory(File.join(path, subFile));
+          end
+        end
+        Dir.rmdir(path)
+      else
+        File.delete(path)
+      end
+    end
+
+    def clear_temp
+      delete_directory(TEMP_PATH) if Dir.exist? TEMP_PATH
+    end
+
+    def get(name)
+      raise "ResourceError: undefined resource #{name} for Resource" unless RESOURCES[name]
+      str =  RESOURCES[name].split('|')
+      name = File.join(TEMP_PATH, [name, str.shift].join)
+      content = str.concat(['']).join("\n").unpack('m')[0]
+      make_temp_file(name, content)
+      name
+    end
+  end
+
+end
+
+RGUI::Resource.init

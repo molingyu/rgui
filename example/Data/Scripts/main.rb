@@ -10,7 +10,7 @@ def console
   $stdin  = File.open('CONIN$')
 end
 
-console
+#console
 
 $g = Game.new
 
@@ -31,6 +31,7 @@ until $g.exit
   rescue Exception
     p $!
     $!.backtrace.each{|e| puts e }
+    exit if $!.class == SystemExit
   end
 end
 

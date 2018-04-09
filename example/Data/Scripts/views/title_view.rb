@@ -10,26 +10,36 @@ class TestView < View
     @mouse_pos = Sprite.new
     @mouse_pos.bitmap = Bitmap.new(640, 480)
     @mouse_pos.x, @mouse_pos.y = 1, 1
-    image = $g.load_image('Pictures/bg1.png')
-    @ImageBox = RGUI::Component::ImageBox.new({
-                                                  x: 100,
-                                                  y: 100,
-                                                  width:300,
-                                                  height:300,
-                                                  image: image,
-                                                  focus: true,
-                                                  type: RGUI::Component::ImageBoxType::Tiling})
-    @ImageBox.event_manager.on(:KEY_A){ |em| em.object.x_scroll(-5) }
-    @ImageBox.event_manager.on(:KEY_D){ |em| em.object.x_scroll(+5) }
-    @ImageBox.event_manager.on(:KEY_W){ |em| em.object.y_scroll(-5) }
-    @ImageBox.event_manager.on(:KEY_S){ |em| em.object.y_scroll(+5) }
-    @ImageBox.action_manager.add_action(:breath, {speed: 0.6})
+    @image_box = RGUI::Component::ImageBox.new({
+                                                   x: 100,
+                                                   y: 100,
+                                                   width:300,
+                                                   height:300,
+                                                   image: $g.load_image('Pictures/bg1.png'),
+                                                   focus: false,
+                                                   type: RGUI::Component::ImageBoxType::Tiling
+                                               })
+    @image_box.event_manager.on(:KEY_A){ |em| em.object.x_scroll(-5) }
+    @image_box.event_manager.on(:KEY_D){ |em| em.object.x_scroll(+5) }
+    @image_box.event_manager.on(:KEY_W){ |em| em.object.y_scroll(-5) }
+    @image_box.event_manager.on(:KEY_S){ |em| em.object.y_scroll(+5) }
+    @image_box.action_manager.add_action(:breath, {speed: 0.6})
+    add_child(@image_box)
+    images = $g.load_image('Pictures/btn_1.png').cut_bitmap(3, 0)
+    @button = RGUI::Component::SpriteButton.new({
+                                                    x: 400,
+                                                    y: 10,
+                                                    focus: true,
+                                                    images: images
+                                                })
+    @button.event_manager.on(:click){ |em| p 'button click' }
+    add_child(@button)
   end
   
   def update
     super
+    exit if Input.down?(:KEY_ESC)
     mouse_pos
-    @ImageBox.update
   end
 
   def mouse_pos
