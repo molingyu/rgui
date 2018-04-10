@@ -57,6 +57,11 @@ module RGUI
         super
       end
 
+      def dispose
+        super
+        @sprite.dispose
+      end
+
       def refresh
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z

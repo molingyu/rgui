@@ -36,6 +36,11 @@ module RGUI
         @collision_box.update_size(@width, @height)
       end
 
+      def dispose
+        super
+        @sprite.dispose
+      end
+
       def def_event_callback
         super
         @event_manager.on([:change_x, :change_y, :change_z, :move, :move_to, :change_width, :change_height, :change_size]) do |em|
@@ -46,7 +51,7 @@ module RGUI
           sprite.zoom_y = em.object.height.to_f / sprite.bitmap.height
         end
         @event_manager.on(:mouse_in){ |em| em.object.sprite.bitmap = em.object.highlight_image }
-        @event_manager.on([:mouse_out, :keyup_MOUSE_LB]){ |em| em.object.sprite.bitmap = em.object.default_image }
+        @event_manager.on([:mouse_out, :keydown_MOUSE_LB]){ |em| em.object.sprite.bitmap = em.object.default_image }
         @event_manager.on(:keydown_MOUSE_LB){ |em| em.object.sprite.bitmap = em.object.press_image }
         @event_manager.on([:change_status, :enable, :disable]){ |em|
           em.object.sprite.bitmap = em.object.status ? em.object.default_image : em.object.disable_image

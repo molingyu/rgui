@@ -40,7 +40,7 @@ module RGUI
         @z = conf[:z] || 0
         @width = conf[:width] || 0
         @height = conf[:height] || 0
-        @focus = conf[:focus] || false
+        @focus = false
         @visible = conf[:visible] || true
         @opacity = conf[:opacity] || 255
         @status = conf[:status] || true
@@ -48,7 +48,7 @@ module RGUI
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
         @collision_box = Collision::AABB.new(@x, @y, @width, @height)
-        def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus, :visible, :opacity, :status, :parent
+        def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus_object, :visible, :opacity, :status, :parent
       end
 
       def def_attrs_writer(*attrs)
@@ -81,6 +81,8 @@ module RGUI
         @event_manager.on(:click)do
           # @type helper [RGUI::Event::EventManager|RGUI::Event::EventHelper]
         |helper|
+          helper.object.get_focus
+          RGUI::Event::EventManager.focus_object.lost_focus if RGUI::Event::EventManager.focus_object
           helper.filter{ helper.time_min(0.3) }
           helper.trigger(:double_click)
         end
