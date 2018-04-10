@@ -17,7 +17,7 @@ module RGUI
         @interpolator = Interpolator.new(@start_alpha).to(@end_alpha).easing(Easing::Linear.out).start(@count)
       end
 
-      # @param [RGUI::Base] object
+      # @param [RGUI::BaseComponent] object
       def update(object)
         @sym = :- if @index == @count
         @sym = :+ if @index == 0
