@@ -4,14 +4,6 @@
 
 require_relative  'game'
 
-def console
-  Win32API.new('kernel32', 'AllocConsole', 'v', 'v').call
-  $stdout = File.open('CONOUT$', 'w')
-  $stdin  = File.open('CONIN$')
-end
-
-#console
-
 $g = Game.new
 
 $g.load_libs
@@ -23,16 +15,8 @@ $g.init(640, 480) do
   $g.start_view = TestView
 end
 
-
 until $g.exit
-  begin
-    $g.update
-    $g.debug if Input.up?(:KEY_F6)
-  rescue Exception
-    p $!
-    $!.backtrace.each{|e| puts e }
-    exit if $!.class == SystemExit
-  end
+  $g.update
 end
 
 

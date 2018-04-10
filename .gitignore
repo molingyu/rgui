@@ -4,6 +4,5 @@
 .vs
 
 # ci
-doc
 .yardoc
 Gemfile.lock

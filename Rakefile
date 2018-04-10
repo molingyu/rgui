@@ -2,7 +2,7 @@ require 'bundler/gem_tasks'
 require 'yard'
 require 'pp'
 
-YARD::Rake::YardocTask.new(:doc) do |t|
+YARD::Rake::YardocTask.new(:api_doc) do |t|
   t.files   = %w(lib/**/*.rb README.md LICENSE)
   t.options += ['--title', "RGUI #{RGUI::VERSION} Documentation"]
 end
@@ -12,14 +12,17 @@ task :pack do
   require_relative './script_pack'
   FileUtils.mkdir_p('dist') unless File.exists?('dist')
   rm_pack.pack({
-                   source: 'lib/index.rb',
+                   source: 'lib/rgui.rb',
                    excludes: ['rgss/rgss_base.rb'],
                    output:'dist/rgui.rb'
                })
 end
 
-task :run_example do
+task :doc_server do
+  %x[docsify serve docs]
+end
 
+task :run_example do
   %x[./example/Game.exe]
 end
 

@@ -8,25 +8,8 @@ class Game
 
   def init(width, height, &block)
     Graphics.resize_screen(width, height)
-    @debug_fiber = Fiber.new do
-      puts 'RGSS Debug Console by shitake!-Version:0.1.0'
-      loop do
-        print ">"
-        code = gets.chomp
-        Fiber.yield if code == 'exit'
-        begin
-          p eval(code, TOPLEVEL_BINDING)
-        rescue Exception
-          p $1
-        end
-      end
-    end
     block.call
     init_view
-  end
-
-  def debug
-    @debug_fiber.resume
   end
 
   def get_path(path)
@@ -51,7 +34,6 @@ class Game
   end
 
   def update
-
     Graphics.update
     Input.update
     @view.update

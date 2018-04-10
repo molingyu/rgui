@@ -558,22 +558,6 @@ class Color
 
 end
 
-# File lib/version.rb
-
-module RGUI
-  VERSION = '0.1.0'
-end
-
-# File lib/rgui.rb
-
-module RGUI
-
-  MOUSE = true
-  KEYBOARD = true
-  CONTROLS = 0
-
-end
-
 # File lib/event/event.rb
 
 module RGUI
@@ -755,6 +739,8 @@ module RGUI
     class EventManager
       class << self
         attr_reader :type_getters
+        # @return [RGUI::Component::BaseComponent]
+        attr_reader :focus_object
 
         # @param [Symbol] name  event name.
         # @return [Symbol] event type.
@@ -772,6 +758,7 @@ module RGUI
         end
 
         def init
+          @focus_object = nil
           @type_getters = {}
           add(:event_system){ |name|  [name, :event_system] if name.to_s =~ /^event_manager_.*/ }
           add(:mouse){ |name| [name, :mouse] if name.to_s =~ /^mouse_.*/ }
@@ -798,6 +785,7 @@ module RGUI
         @event_callback_fibers = []
         @mouse_focus = false
         @keyboard_events = []
+        @mouse_events = []
         @filter_timers = {}
         @filter_counters = {}
       end
@@ -846,6 +834,7 @@ module RGUI
         update_fiber
         if @object.status && @object.visible
           update_mouse
+          @mouse_events.each{ |o| update_keyboard(o) } if @mouse_focus
           @keyboard_events.each{ |o| update_keyboard(o) } if @object.focus
         end
       end
@@ -884,7 +873,11 @@ module RGUI
         @events[name] = Event.new(name, type) unless @events[name]
         @events[name].push(Callback.new(immediately, &callback))
         if [:keydown, :keyup, :keypress].include? type
-          @keyboard_events << @events[name] unless  @keyboard_events.include? @events[name]
+          if name.to_s.include? 'MOUSE'
+            @mouse_events << @events[name] unless  @mouse_events.include? @events[name]
+          else
+            @keyboard_events << @events[name] unless  @keyboard_events.include? @events[name]
+          end
         end
       end
 
@@ -1037,7 +1030,7 @@ module RGUI
         @interpolator = Interpolator.new(@start_alpha).to(@end_alpha).easing(Easing::Linear.out).start(@count)
       end
 
-      # @param [RGUI::Base] object
+      # @param [RGUI::BaseComponent] object
       def update(object)
         @sym = :- if @index == @count
         @sym = :+ if @index == 0
@@ -1145,7 +1138,7 @@ module RGUI
         @z = conf[:z] || 0
         @width = conf[:width] || 0
         @height = conf[:height] || 0
-        @focus = conf[:focus] || false
+        @focus = false
         @visible = conf[:visible] || true
         @opacity = conf[:opacity] || 255
         @status = conf[:status] || true
@@ -1153,7 +1146,7 @@ module RGUI
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
         @collision_box = Collision::AABB.new(@x, @y, @width, @height)
-        def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus, :visible, :opacity, :status, :parent
+        def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus_object, :visible, :opacity, :status, :parent
       end
 
       def def_attrs_writer(*attrs)
@@ -1186,6 +1179,8 @@ module RGUI
         @event_manager.on(:click)do
           # @type helper [RGUI::Event::EventManager|RGUI::Event::EventHelper]
         |helper|
+          helper.object.get_focus
+          RGUI::Event::EventManager.focus_object.lost_focus if RGUI::Event::EventManager.focus_object
           helper.filter{ helper.time_min(0.3) }
           helper.trigger(:double_click)
         end
@@ -1337,6 +1332,11 @@ module RGUI
         super
       end
 
+      def dispose
+        super
+        @sprite.dispose
+      end
+
       def refresh
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
@@ -1408,6 +1408,11 @@ module RGUI
         @collision_box.update_size(@width, @height)
       end
 
+      def dispose
+        super
+        @sprite.dispose
+      end
+
       def def_event_callback
         super
         @event_manager.on([:change_x, :change_y, :change_z, :move, :move_to, :change_width, :change_height, :change_size]) do |em|
@@ -1418,12 +1423,75 @@ module RGUI
           sprite.zoom_y = em.object.height.to_f / sprite.bitmap.height
         end
         @event_manager.on(:mouse_in){ |em| em.object.sprite.bitmap = em.object.highlight_image }
-        @event_manager.on([:mouse_out, :keyup_MOUSE_LB]){ |em| em.object.sprite.bitmap = em.object.default_image }
+        @event_manager.on([:mouse_out, :keydown_MOUSE_LB]){ |em| em.object.sprite.bitmap = em.object.default_image }
         @event_manager.on(:keydown_MOUSE_LB){ |em| em.object.sprite.bitmap = em.object.press_image }
         @event_manager.on([:change_status, :enable, :disable]){ |em|
           em.object.sprite.bitmap = em.object.status ? em.object.default_image : em.object.disable_image
         }
       end
+    end
+  end
+end
+
+# File lib/components/label.rb
+
+module RGUI
+  module Component
+    class Label < BaseComponent
+      attr_reader :text
+      attr_reader :size
+      attr_reader :color
+      attr_reader :sprite
+      attr_reader :align
+
+      def initialize(conf = {})
+        super(conf)
+        @text = conf[:text] || ''
+        @size = conf[:size] || 16
+        @color = conf[:color] || Color::WHITE
+        @align = conf[:align] || 1
+        @sprite = Sprite.new
+        @sprite.x, @sprite.y = @x, @y
+        @sprite.z = @z if @z
+        @sprite.bitmap = Bitmap.new(@width, @height)
+        @sprite.opacity = @visible ? @opacity : 0
+        def_attrs_writer :text, :size, :color
+        create
+      end
+
+      def create
+        refresh
+        super
+      end
+
+      def dispose
+        super
+        @sprite.dispose
+      end
+
+      def refresh
+        @sprite.bitmap.font.size = @size
+        @sprite.bitmap.font.color = @color
+        rect = Rect.new(0, 0, @width, @height)
+        @sprite.bitmap.draw_text(rect, @text, @align)
+      end
+
+      def def_event_callback
+        super
+        @event_manager.on([:change_x, :change_y, :change_z, :move, :move_to, :change_width, :change_height, :change_size]) do |em|
+          sprite = em.object.sprite
+          sprite.x, sprite.y = em.object.x, em.object.y
+          sprite.z = em.object.z if em.object.z
+          sprite.zoom_x = em.object.width.to_f / sprite.bitmap.width
+          sprite.zoom_y = em.object.height.to_f / sprite.bitmap.height
+        end
+
+        @event_manager.on([:change_text, :change_size, :change_color, :change_align]) do |em|
+          em.object.refresh
+        end
+
+      end
+
     end
   end
 end
@@ -1489,3 +1557,9 @@ module RGUI::Resource
 end
 
 RGUI::Resource.init
+
+# File lib/version.rb
+
+module RGUI
+  VERSION = '0.1.0'
+end
