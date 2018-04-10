@@ -1,6 +1,5 @@
 # encoding:utf-8
 
-require_relative '../rgui'
 require_relative 'event'
 require_relative 'event_helper'
 require_relative 'event_callback_fiber'
@@ -19,6 +18,8 @@ module RGUI
     class EventManager
       class << self
         attr_reader :type_getters
+        # @return [RGUI::Component::BaseComponent]
+        attr_reader :focus_object
 
         # @param [Symbol] name  event name.
         # @return [Symbol] event type.
@@ -36,6 +37,7 @@ module RGUI
         end
 
         def init
+          @focus_object = nil
           @type_getters = {}
           add(:event_system){ |name|  [name, :event_system] if name.to_s =~ /^event_manager_.*/ }
           add(:mouse){ |name| [name, :mouse] if name.to_s =~ /^mouse_.*/ }
@@ -62,6 +64,7 @@ module RGUI
         @event_callback_fibers = []
         @mouse_focus = false
         @keyboard_events = []
+        @mouse_events = []
         @filter_timers = {}
         @filter_counters = {}
       end
@@ -110,6 +113,7 @@ module RGUI
         update_fiber
         if @object.status && @object.visible
           update_mouse
+          @mouse_events.each{ |o| update_keyboard(o) } if @mouse_focus
           @keyboard_events.each{ |o| update_keyboard(o) } if @object.focus
         end
       end
@@ -148,7 +152,11 @@ module RGUI
         @events[name] = Event.new(name, type) unless @events[name]
         @events[name].push(Callback.new(immediately, &callback))
         if [:keydown, :keyup, :keypress].include? type
-          @keyboard_events << @events[name] unless  @keyboard_events.include? @events[name]
+          if name.to_s.include? 'MOUSE'
+            @mouse_events << @events[name] unless  @mouse_events.include? @events[name]
+          else
+            @keyboard_events << @events[name] unless  @keyboard_events.include? @events[name]
+          end
         end
       end
 
