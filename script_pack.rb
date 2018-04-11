@@ -55,13 +55,12 @@ module RmPack
       @source = conf[:source]
       @excludes = conf[:excludes] || []
       @output = conf[:output] || './out.rb'
-      rvdata = true if @output.include? '.rvdata2'
       @excludes.map!{|exclude| File.expand_path(exclude, File.dirname(@source)) }
       init_loaders
       @cont << @source
       get_requires
       list = reorder(@source, @visited[@source])
-      rvdata ? out_rvdata2(list) : out_rb(list)
+      @output.include? '.rvdata2' ? out_rvdata2(list) : out_rb(list)
       puts "Finish! #{@count} files."
     end
 
@@ -87,7 +86,7 @@ module RmPack
         next '' if file_str == ''
         @count += 1
         puts file
-        get_file_name(f) + file_str
+        get_file_name(file) + file_str
       }.reduce(:concat).strip
     end
 
@@ -136,7 +135,7 @@ module RmPack
     end
 
     def add_suffix(str)
-      return str + '.rb' unless str.reverse =~ /^br\./
+      return str + '.rb' unless str.end_with? 'rb'
       str
     end
 

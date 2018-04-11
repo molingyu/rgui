@@ -4,6 +4,7 @@
 * 模块
     * [动画模块](action_module.md)
     * [事件模块](event_module.md)
+    * [数据绑定](data_bind.md)
     
 * 组件
     * [精灵按钮](sprite_button.md)
