@@ -1,4 +1,5 @@
 require 'fileutils'
+require 'zlib'
 
 module RmPack
   class RmPack
@@ -54,19 +55,40 @@ module RmPack
       @source = conf[:source]
       @excludes = conf[:excludes] || []
       @output = conf[:output] || './out.rb'
+      rvdata = true if @output.include? '.rvdata2'
       @excludes.map!{|exclude| File.expand_path(exclude, File.dirname(@source)) }
       init_loaders
       @cont << @source
       get_requires
-      file = create_file
-      file.write "# encoding:utf-8\n" + reorder(@source, @visited[@source]).map { |f|
-        file_str = get_file(f)
+      list = reorder(@source, @visited[@source])
+      rvdata ? out_rvdata2(list) : out_rb(list)
+      puts "Finish! #{@count} files."
+    end
+
+    def out_rvdata2(list, mode = 0)
+      script = []
+      if mode == 0
+        list.each do |file|
+          file_str = get_file(file)
+          next '' if file_str == ''
+          @count += 1
+          puts file
+          script << [@count, get_file_name(file).strip.match(/# File (.*).rb/)[1], Zlib::Deflate.deflate(get_file(file).strip)]
+        end
+      end
+      File.open(@output, "wb") { |f|
+        Marshal.dump(script, f)
+      }
+    end
+
+    def out_rb(list)
+      create_file.write "# encoding:utf-8\n" + list.map { |file|
+        file_str = get_file(file)
         next '' if file_str == ''
         @count += 1
-        puts f
+        puts file
         get_file_name(f) + file_str
-      }.reduce(:concat).strip.gsub('', '')
-      puts "Finish! #{@count} files."
+      }.reduce(:concat).strip
     end
 
     # @param [String] file
