@@ -60,7 +60,8 @@ module RmPack
       @cont << @source
       get_requires
       list = reorder(@source, @visited[@source])
-      @output.include? '.rvdata2' ? out_rvdata2(list) : out_rb(list)
+      p @output
+      @output.include?('.rvdata2') ? out_rvdata2(list) : out_rb(list)
       puts "Finish! #{@count} files."
     end
 
@@ -81,13 +82,13 @@ module RmPack
     end
 
     def out_rb(list)
-      create_file.write "# encoding:utf-8\n" + list.map { |file|
+      create_file.write ("# encoding:utf-8\n" + list.map { |file|
         file_str = get_file(file)
         next '' if file_str == ''
         @count += 1
         puts file
         get_file_name(file) + file_str
-      }.reduce(:concat).strip
+      }.reduce(:concat).strip)
     end
 
     # @param [String] file
