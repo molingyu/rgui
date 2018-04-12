@@ -48,6 +48,7 @@ module RGUI::Resource
       raise "ResourceError: undefined resource #{name} for Resource" unless RESOURCES[name]
       str =  RESOURCES[name].split('|')
       name = File.join(TEMP_PATH, [name, str.shift].join)
+      return name if File.exist? name
       content = str.concat(['']).join("\n").unpack('m')[0]
       make_temp_file(name, content)
       name
