@@ -6,3 +6,4 @@
 # ci
 .yardoc
 Gemfile.lock
+/example/dev.log

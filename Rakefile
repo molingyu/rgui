@@ -1,6 +1,5 @@
-require 'bundler/gem_tasks'
 require 'yard'
-require 'pp'
+require './lib/version'
 
 YARD::Rake::YardocTask.new(:api_doc) do |t|
   t.files   = %w(lib/**/*.rb README.md LICENSE)
@@ -12,7 +11,7 @@ task :pack do
   require_relative './script_pack'
   FileUtils.mkdir_p('dist') unless File.exists?('dist')
   rm_pack.pack({
-                   source: 'lib/rgui.rb',
+                   source: './lib/rgui.rb',
                    excludes: ['rgss/rgss_base.rb'],
                    output:'dist/rgui.rb'
                })
