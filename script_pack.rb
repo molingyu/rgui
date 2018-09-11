@@ -52,7 +52,7 @@ module RmPack
     end
 
     def pack(conf)
-      @source = conf[:source]
+      @source = File.expand_path(conf[:source], File.dirname(__FILE__))
       @excludes = conf[:excludes] || []
       @output = conf[:output] || './out.rb'
       @excludes.map!{|exclude| File.expand_path(exclude, File.dirname(@source)) }
@@ -60,7 +60,7 @@ module RmPack
       @cont << @source
       get_requires
       list = reorder(@source, @visited[@source])
-      p @output
+      puts "output: #{@output}"
       @output.include?('.rvdata2') ? out_rvdata2(list) : out_rb(list)
       puts "Finish! #{@count} files."
     end
@@ -95,7 +95,7 @@ module RmPack
     # @param [Hash] visited
     # @param [Array] cont
     def visit(file, visited, cont)
-      return if (visited.include? file)
+      return if visited.include? file
       visited[file] = []
       File.open(file) do |f|
         @files[file] = f.readlines.map { |str|
@@ -103,6 +103,7 @@ module RmPack
           RmPack.loaders.each do |loader|
             if loader.match(str, f)
               depends = loader.file
+              next delete = true if depends == file
               cont << depends unless cont.include? depends
               visited[file] << depends
             end
@@ -116,7 +117,7 @@ module RmPack
     # @param [String] file
     # @param [Array<String>] dependency
     def reorder(file, dependency)
-      return [file] if dependency == []
+      return [file] if dependency == [] || dependency == nil
       dependency.map {|dep| reorder(dep, @visited[dep]) }.push(file).flatten.uniq
     end
   end
