@@ -68,7 +68,7 @@ class Bitmap
   # blt(x, y, src_bitmap, src_rect[, opacity])   -> nil
   #   将位图 src_bitmap 的矩形 src_rect（Rect）中的数据整体传送到当前位图的坐标 (x, y) 处。
   #   opacity 是透明度，范围 0～255。
-  def blt(x, y, src_bitmap, src_rect, opacity = 255)
+  def blt(x, y, src_bitmap, src_rect = src_bitmap.rect, opacity = 255)
     #This is a stub, used for indexing.
   end
 

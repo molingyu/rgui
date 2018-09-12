@@ -17,16 +17,22 @@ task :pack do
                })
 end
 
+desc "clean project"
+task :clean do
+  %x[rm -rf ./dist/*]
+end
+
 task :doc_server do
   %x[docsify serve docs]
 end
 
-task :run_example do
+desc "run example"
+task :run do
   %x[./example/Game.exe]
 end
 
-
-task start: [:pack, :run_example]
+desc "start rgui"
+task start: [:clean, :pack, :run]
 
 
 task default: [:start]

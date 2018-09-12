@@ -14,6 +14,12 @@ end
 
 class Bitmap
 
+  alias :rgss_blt :blt
+
+  def blt(x, y, src_bitmap, src_rect = src_bitmap.rect, opacity = 255)
+    rgss_blt(x, y, src_bitmap, src_rect, opacity)
+  end
+
   def cut_bitmap(width_count, height_count)
     return [] if height_count == 0 && width_count == 0
     return cut_row(width_count) if height_count == 0
