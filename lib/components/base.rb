@@ -33,6 +33,8 @@ module RGUI
       attr_reader :action_manager
       # @return [RGUI::Collision::CollisionBase]
       attr_reader :collision_box
+      # @return [Boolean]
+      attr_reader :i18n
 
       def initialize(conf = {})
         @x = conf[:x] || 0
@@ -48,6 +50,7 @@ module RGUI
         @event_manager = Event::EventManager.new(self)
         @action_manager = Action::ActionManager.new(self)
         @collision_box = Collision::AABB.new(@x, @y, @width, @height)
+        @i18n = conf[:i18n] || false
         def_attrs_writer :x, :y, :z, :width, :height, :viewport, :focus_object, :visible, :opacity, :status, :parent
       end
 
