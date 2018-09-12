@@ -1,5 +1,4 @@
 # encoding:utf-8
-require_relative 'event_manager' #delete
 
 module RGUI
   module Event

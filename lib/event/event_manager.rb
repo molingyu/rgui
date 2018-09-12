@@ -9,7 +9,7 @@ module RGUI
     class Callback < Proc
       attr_reader :immediately
       def initialize(immediately, &callback)
-        super(&callback)
+        super(callback)
         @immediately = immediately
       end
     end
@@ -82,7 +82,7 @@ module RGUI
       end
 
       def update_mouse
-        x, y = Input.get_pos
+        x, y = Mouse.x, Mouse.y
         collision = @object.collision_box
         if !@mouse_focus && collision.point_hit(x, y)
           trigger(:mouse_in, {:x=>x, :y=>y})
@@ -91,7 +91,7 @@ module RGUI
           trigger(:mouse_out, {:x=>x, :y=>y})
           @mouse_focus = false
         end
-        trigger(:mouse_scroll, {:value => Input.scroll_value}) if Input.scroll?
+        #trigger(:mouse_scroll, {:value => Mouse.scroll_value}) if Mouse.scroll?
       end
 
       # @param [Event] event

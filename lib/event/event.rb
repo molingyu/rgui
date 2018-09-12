@@ -2,6 +2,7 @@
 
 module RGUI
   module Event
+    # noinspection RubyArgCount
     class Event < Array
       # event name
       # @return [Symbol]
