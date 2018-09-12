@@ -19,8 +19,8 @@ module RGUI
 
       # @param [RGUI::BaseComponent] object
       def update(object)
-        @sym = :- if @index == @count
-        @sym = :+ if @index == 0
+        @sym = :- if @index >= @count
+        @sym = :+ if @index <= 0
         object.opacity = @interpolator.get(@index)
         @index = @index.send(@sym, 1)
       end
