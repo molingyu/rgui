@@ -19,6 +19,9 @@ module RGUI
         @highlight_image = conf[:highlight_image] || conf[:images][1]
         @press_image = conf[:press_image] || conf[:images][2]
         @disable_image = conf[:disable_image] || conf[:images][3]
+        @width = @default_image.width
+        @height = @default_image.height
+        @collision_box.update_size(@width, @height)
         @sprite = Sprite.new
         @sprite.x, @sprite.y = @x, @y
         @sprite.z = @z if @z
@@ -51,8 +54,9 @@ module RGUI
           sprite.zoom_y = em.object.height.to_f / sprite.bitmap.height
         end
         @event_manager.on(:mouse_in){ |em| em.object.sprite.bitmap = em.object.highlight_image }
-        @event_manager.on([:mouse_out, :keydown_MOUSE_LB]){ |em| em.object.sprite.bitmap = em.object.default_image }
+        @event_manager.on(:mouse_out){ |em| em.object.sprite.bitmap = em.object.default_image }
         @event_manager.on(:keydown_MOUSE_LB){ |em| em.object.sprite.bitmap = em.object.press_image }
+        @event_manager.on(:keyup_MOUSE_LB){ |em| em.object.sprite.bitmap = em.object.highlight_image }
         @event_manager.on([:change_status, :enable, :disable]){ |em|
           em.object.sprite.bitmap = em.object.status ? em.object.default_image : em.object.disable_image
         }

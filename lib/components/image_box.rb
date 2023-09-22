@@ -6,9 +6,9 @@ module RGUI
   module Component
 
     module ImageBoxType
-      Tiling = 0
-      Filling = 1
-      Responsive = 2
+      Tiling = 0 # 平铺
+      Filling = 1 # 填充
+      Responsive = 2 # 自适应
     end
 
     class ImageBox < BaseComponent
@@ -35,6 +35,10 @@ module RGUI
         @sprite.z = @z if @z
         @sprite.opacity = @visible ? @opacity : 0
         @type = conf[:type] || 0
+        if @type == ImageBoxType::Responsive
+          @collision_box.update_pos(@x, @y)
+          @collision_box.update_size(@width, @height)
+        end
         @x_wheel = conf[:x_wheel] || 0
         @y_wheel = conf[:y_wheel] || 0
         def_attrs_writer :image, :type, :x_wheel, :y_wheel
