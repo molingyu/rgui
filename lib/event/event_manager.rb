@@ -9,7 +9,7 @@ module RGUI
     class Callback < Proc
       attr_reader :immediately
       def initialize(immediately, &callback)
-        super(callback)
+        super(&callback)
         @immediately = immediately
       end
     end
@@ -19,7 +19,7 @@ module RGUI
       class << self
         attr_reader :type_getters
         # @return [RGUI::Component::BaseComponent]
-        attr_reader :focus_object
+        attr_accessor :focus_object
 
         # @param [Symbol] name  event name.
         # @return [Symbol] event type.
@@ -82,7 +82,7 @@ module RGUI
       end
 
       def update_mouse
-        x, y = Mouse.x, Mouse.y
+        x, y = Input.get_pos
         collision = @object.collision_box
         if !@mouse_focus && collision.point_hit(x, y)
           trigger(:mouse_in, {:x=>x, :y=>y})
@@ -91,7 +91,10 @@ module RGUI
           trigger(:mouse_out, {:x=>x, :y=>y})
           @mouse_focus = false
         end
-        #trigger(:mouse_scroll, {:value => Mouse.scroll_value}) if Mouse.scroll?
+        if @object.focus
+          trigger(:mouse_scroll_down, {:value => Input.mouse_wheel }) if Input.wheel_down?
+          trigger(:mouse_scroll_up, {:value => Input.mouse_wheel }) if Input.wheel_up?
+        end
       end
 
       # @param [Event] event
@@ -99,11 +102,11 @@ module RGUI
         return if event.name.to_s.include?('MOUSE') && !@mouse_focus
         case event.type
           when :keydown
-            return trigger(event.name) if Input.down?(event.name)
-          when :keypress
-            return trigger(event.name) if Input.press?(event.name)
+            return trigger(event.name) if Input.down?(event.key_name)
+        when :keypress
+            return trigger(event.name) if Input.press?(event.key_name)
           when :keyup
-            return trigger(event.name) if Input.up?(event.name)
+            return trigger(event.name) if Input.up?(event.key_name)
           else
             raise 'Error:Keyboard event type error!'
         end
@@ -146,10 +149,10 @@ module RGUI
       # @param [Proc] callback
       def on(name, immediately = false, &callback)
         if name.class == Array
-          return name.each{ |str| on(str, false, &callback)  }
+          return name.each{ |str| on(str, immediately, &callback)  }
         end
-        name, type = EventManager.get_type(name)
-        @events[name] = Event.new(name, type) unless @events[name]
+        key_name, type = EventManager.get_type(name)
+        @events[name] = Event.new(name, type, key_name) unless @events[name]
         @events[name].push(Callback.new(immediately, &callback))
         if [:keydown, :keyup, :keypress].include? type
           if name.to_s.include? 'MOUSE'

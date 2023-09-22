@@ -10,11 +10,15 @@ module RGUI
       # event type
       # @return [Symbol]
       attr_reader :type
+      # keyboard event key name
+      # @return [Symbol]
+      attr_reader :key_name
 
-      def initialize(name, type)
+      def initialize(name, type, key_name = nil)
         super()
         @name = name
         @type = type
+        @key_name = key_name
       end
     end
   end

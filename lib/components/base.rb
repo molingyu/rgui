@@ -80,14 +80,13 @@ module RGUI
           em.object.collision_box.update_size(info[:new][:width], info[:new][:height])
         end
 
-        # click => double click
-        @event_manager.on(:click)do
+        @event_manager.on(:keydown_MOUSE_LB)do
           # @type helper [RGUI::Event::EventManager|RGUI::Event::EventHelper]
-        |helper|
-          helper.object.get_focus
+        |em|
+          em.object.get_focus
           RGUI::Event::EventManager.focus_object.lost_focus if RGUI::Event::EventManager.focus_object
-          helper.filter{ helper.time_min(0.3) }
-          helper.trigger(:double_click)
+          RGUI::Event::EventManager.focus_object = em.object
+          em.filter{ em.time_min(0.3) }
         end
       end
 
@@ -174,7 +173,16 @@ module RGUI
         old = { :width => self.width, :height => self.height }
         @width = width
         @height = height
+        @collision_box.update_size(@width, @height)
         @event_manager.trigger(:change_size, {:old => old, :new => { :width => self.width, :height => self.height }})
+      end
+
+      def em
+        event_manager
+      end
+
+      def am
+        action_manager
       end
     end
   end
