@@ -10,7 +10,7 @@ $g.load_libs
 $g.load_games
 $g.load_views
 
-$g.init(640, 480) do
+$g.init(1280, 720) do
   $g.exit = false
   $g.start_view = TestView
 end

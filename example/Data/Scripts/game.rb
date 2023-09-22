@@ -8,6 +8,7 @@ class Game
 
   def init(width, height, &block)
     Graphics.resize_screen(width, height)
+    Graphics.resize_window(width, height)
     block.call
     init_view
   end
@@ -16,21 +17,16 @@ class Game
     Dir.glob(path)
   end
 
-  def auto_load(paths)
-    paths.each{|path| require path }
-  end
-
   def load_libs
-    auto_load get_path('Data/Scripts/libs/*.rb')
+    require_relative './libs/main'
   end
 
   def load_games
-    auto_load get_path('Data/Scripts/games/*.rb')
+
   end
 
   def load_views
-    require 'Data/Scripts/view.rb'
-    auto_load get_path('Data/Scripts//views/*.rb')
+    require_relative 'views/title_view'
   end
 
   def update
