@@ -7,3 +7,5 @@
 .yardoc
 Gemfile.lock
 /example/dev.log
+
+/dist/**
