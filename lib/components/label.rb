@@ -8,8 +8,8 @@ module RGUI
       attr_reader :text
       attr_reader :size
       attr_reader :font
-      attr_reader :outline
-      attr_reader :pixel
+      # attr_reader :outline
+      # attr_reader :pixel
       attr_reader :color
       attr_reader :sprite
       attr_reader :align
@@ -19,8 +19,9 @@ module RGUI
         @text = conf[:text] || ''
         @font = conf[:font] || Font.default_name
         @size = conf[:size] || 16
-        @outline = conf[:outline].nil? ? false : conf[:outline]
-        @pixel = conf[:pixel].nil? ? false : conf[:pixel]
+        # TODO: 等待 RGM 实现相关 API
+        # @outline = conf[:outline].nil? ? false : conf[:outline]
+        # @pixel = conf[:pixel].nil? ? false : conf[:pixel]
         @color = conf[:color] || Color::WHITE
         @align = conf[:align] || 0
         @sprite = Sprite.new
@@ -45,8 +46,8 @@ module RGUI
       def refresh
         @sprite.bitmap.font.name = @font
         @sprite.bitmap.font.size = @size
-        @sprite.bitmap.font.outline = @outline
-        @sprite.bitmap.font.pixel = @pixel
+        # @sprite.bitmap.font.outline = @outline
+        # @sprite.bitmap.font.pixel = @pixel
         @sprite.bitmap.font.color = @color
         rect = Rect.new(0, 0, @width, @height)
         @sprite.bitmap.clear
