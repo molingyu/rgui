@@ -10,9 +10,9 @@ Gem::Specification.new do |spec|
   spec.authors       = ["shitake"]
   spec.email         = ["z1422716486@hotmail.com"]
 
-  spec.summary       = %q{an async event framework}
-  spec.description   = %q{Svent is an async event framework implemented with Fiber.Used for game or GUI event handling. }
-  spec.homepage      = "https://github.com/molingyu/svent"
+  spec.summary       = %q{rgss UI framework}
+  spec.description   = %q{A modern GUI framework for RGSS.}
+  spec.homepage      = "https://github.com/molingyu/rgui"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0").reject do |f|
@@ -23,6 +23,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_development_dependency "bundler", "~> 1.13"
-  spec.add_development_dependency "rake", "~> 10.0"
+  spec.add_development_dependency "rake", "~> 13.0"
 
 end

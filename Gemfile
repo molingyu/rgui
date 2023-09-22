@@ -5,5 +5,5 @@ gemspec
 
 group :test do
   gem 'yard'
-  gem 'rake', '~> 0.9.2'
+  gem 'rake', '~> 13.0'
 end
