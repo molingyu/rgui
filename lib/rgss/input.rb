@@ -105,59 +105,17 @@ module Input
       KEY_SCROLL: 0x91,
   }
 
-  GetKeyboardState = API.to_api('user32|GetKeyboardState|p|i')
   GetMousePos = API.to_api('user32|GetCursorPos|p|i')
   Scr2Cli = API.to_api('user32|ScreenToClient|lp|i')
 
   class << self
 
-    def init
-      @old_keyboard_state = @keyboard_state = ' ' * 256
-      @keyboard = Hash.new(0)
-    end
-
-    alias :shitake_core_plus_update :update
-
-    def update
-      shitake_core_plus_update
-      update_keyboard
-    end
-
-    def update_keyboard
-      @old_keyboard_state = @keyboard_state
-      @keyboard_state = ' ' * 256
-      GetKeyboardState.call(@keyboard_state)
-      256.times do |i|
-        next unless KEY_VALUE.index(i)
-        @keyboard[i] = 2 if @keyboard[i] == 1
-        @keyboard[i] = 0 if @keyboard[i] == 3
-        if @keyboard_state[i] != @old_keyboard_state[i] && @old_keyboard_state[i] != ' '
-          case @keyboard[i]
-            when 0
-              @keyboard[i] = 1
-            when 2
-              @keyboard[i] = 3
-          end
-        end
-      end
-    end
+    alias :old_press? :press?
 
     def press?(key)
       key = key.to_sym if key.class == String
       value = KEY_VALUE[key]
-      (@keyboard[value] == 1 || @keyboard[value] == 2)
-    end
-
-    def down?(key)
-      key = key.to_sym if key.class == String
-      value = KEY_VALUE[key]
-      @keyboard[value] == 1
-    end
-
-    def up?(key)
-      key = key.to_sym if key.class == String
-      value = KEY_VALUE[key]
-      @keyboard[value] == 3
+      old_press?(value)
     end
 
     def get_global_pos
@@ -183,7 +141,5 @@ module Input
     end
 
   end
-
-  init
 
 end
