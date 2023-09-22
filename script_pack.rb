@@ -18,12 +18,15 @@ module RmPack
     attr_reader :excludes
     attr_reader :source
     attr_reader :output
+    attr_reader :runtime
 
     def initialize
       @visited = {}
       @cont = []
       @count = 0
       @files = {}
+      @current_loaders = []
+      @runtime = nil
     end
 
     def get_requires
@@ -43,7 +46,7 @@ module RmPack
     end
 
     def init_loaders
-      RmPack.loaders.map! { |loader| loader.new(self) }
+      RmPack.loaders.each { |loader| @current_loaders.push(loader.new(self)) }
     end
 
     def create_file
@@ -56,6 +59,7 @@ module RmPack
       @excludes = conf[:excludes] || []
       @output = conf[:output] || './out.rb'
       @excludes.map!{|exclude| File.expand_path(exclude, File.dirname(@source)) }
+      @runtime = conf[:runtime] || :default
       init_loaders
       @cont << @source
       get_requires
@@ -63,6 +67,10 @@ module RmPack
       puts "output: #{@output}"
       @output.include?('.rvdata2') ? out_rvdata2(list) : out_rb(list)
       puts "Finish! #{@count} files."
+    end
+
+    def get_build_attr
+      "# build date:#{Time.now}\n# build runtime:#{@runtime}\n"
     end
 
     def out_rvdata2(list, mode = 0)
@@ -82,7 +90,7 @@ module RmPack
     end
 
     def out_rb(list)
-      create_file.write ("# encoding:utf-8\n" + list.map { |file|
+      create_file.write("# encoding:utf-8\n" + get_build_attr + list.map { |file|
         file_str = get_file(file)
         next '' if file_str == ''
         @count += 1
@@ -100,7 +108,7 @@ module RmPack
       File.open(file) do |f|
         @files[file] = f.readlines.map { |str|
           delete = false
-          RmPack.loaders.each do |loader|
+          @current_loaders.each do |loader|
             if loader.match(str, f)
               depends = loader.file
               next delete = true if depends == file
@@ -129,10 +137,13 @@ module RmPack
 
     def initialize(conf)
       @excludes = conf.excludes
+      @runtime = conf.runtime
       @file = ''
       @match_exp = /require_relative[^\n]*/
       @file_exp = /require_relative\s*'([^']*)'/
-      @mark_exp = /require_relative\s*'[^']*'\s*\#delete\s/
+      @mark_exp = /require_relative\s*'[^']*'\s*\# delete\s/
+      @rgd_exp = /require_relative\s*'[^']*'\s*\# runtime=(rgm;)?rgd(;rgm)?\s/
+      @rgm_exp = /require_relative\s*'[^']*'\s*\# runtime=(rgd;)?rgm(;rgd)?\s/
       @delete = true
     end
 
@@ -147,7 +158,19 @@ module RmPack
       @delete = true
       return false if str =~ @mark_exp
       return false if str !~ @file_exp
-      @file = File.expand_path(add_suffix($1), File.dirname(f))
+      match_str = $1
+      filename = ''
+      case @runtime
+      when :default
+        filename = add_suffix(match_str)
+      when :rgm
+        filename = add_suffix(match_str + (str =~ @rgm_exp ? '_rgm' : ''))
+      when :rgd
+        filename = add_suffix(match_str + (str =~ @rgd_exp ? '_rgd' : ''))
+      else
+        filename = add_suffix(match_str)
+      end
+      @file = File.expand_path(filename, File.dirname(f))
       return false if @excludes.include? @file
       @file
     end
